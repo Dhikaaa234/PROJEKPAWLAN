@@ -1,4 +1,4 @@
-# Sistem Pelaporan Kerusakan & Gangguan Fasilitas Fakultas
+# Sistem Pelaporan Kerusakan & Gangguan Fasilitas Fakultas Ilmu Komputer
 
 Sistem Pelaporan Kerusakan & Gangguan Fasilitas Fakultas merupakan sebuah sistem untuk membantu mahasiswa, dosen, ataupun staf untuk melaporkan kerusakan atau gangguan fasilitas di lingkungan fakultas Ilmu Komputer, seperti ruang kelas, laboratorium, dan area umum lainnya. Laporan yang dimasukkan diproses oleh admin dan dapat dipantau statusnya secara real-time oleh pelapor.
 
