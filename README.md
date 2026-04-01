@@ -49,7 +49,7 @@ Alur 2: Admin memproses laporan
   
 Alur 3: User memantau laporan
 1. User login
-2. Melihat daftar laporan miliknya
+2. Melihat daftar laporan
 3. Melihat perubahan status
 
 ## 🗂️ Desain _Database_
