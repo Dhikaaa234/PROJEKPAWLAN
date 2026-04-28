@@ -11,23 +11,32 @@ use Illuminate\Support\Facades\Auth;
 class ReportController extends Controller
 {
     // GET ALL REPORTS
-    public function index(Request $request)
+    public function index()
     {
-        $reports = Report::with([
-            'user',
-            'category',
-            'status'
-        ])
-            ->when($request->search, function ($query) use ($request) {
-                $query->where('judul', 'like', '%' . $request->search . '%');
-            })
-            ->when($request->category_id, function ($query) use ($request) {
-                $query->where('category_id', $request->category_id);
-            })
-            ->latest()
-            ->get();
+        $user = Auth::user();
 
-        return response()->json($reports);
+        if ($user->role->nama_role === 'admin') {
+
+            $reports = Report::with([
+                'user',
+                'category',
+                'status'
+            ])->latest()->get();
+        } else {
+
+            $reports = Report::with([
+                'category',
+                'status'
+            ])
+                ->where('user_id', $user->id)
+                ->latest()
+                ->get();
+        }
+
+        return response()->json([
+            'message' => 'Data laporan berhasil diambil',
+            'data' => $reports
+        ]);
     }
 
     // STORE REPORT
@@ -38,17 +47,24 @@ class ReportController extends Controller
             'judul' => 'required|max:150',
             'deskripsi' => 'required',
             'lokasi' => 'required|max:150',
-            'gambar' => 'nullable|string',
+            'gambar' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
+
+        $path = null;
+
+        if ($request->hasFile('gambar')) {
+            $path = $request->file('gambar')
+                ->store('reports', 'public');
+        }
 
         $report = Report::create([
             'user_id' => Auth::id(),
             'category_id' => $validated['category_id'],
-            'status_id' => 1, // dikirim
+            'status_id' => 1,
             'judul' => $validated['judul'],
             'deskripsi' => $validated['deskripsi'],
             'lokasi' => $validated['lokasi'],
-            'gambar' => $validated['gambar'] ?? null,
+            'gambar' => $path,
         ]);
 
         Log::create([
@@ -63,15 +79,30 @@ class ReportController extends Controller
     }
 
     // DETAIL REPORT
-    public function show(string $id)
+    public function show($id)
     {
+        $user = Auth::user();
+
         $report = Report::with([
             'user',
             'category',
             'status'
         ])->findOrFail($id);
 
-        return response()->json($report);
+        if (
+            $user->role->nama_role !== 'admin'
+            &&
+            $report->user_id !== $user->id
+        ) {
+            return response()->json([
+                'message' => 'Akses ditolak'
+            ], 403);
+        }
+
+        return response()->json([
+            'message' => 'Detail laporan',
+            'data' => $report
+        ]);
     }
 
     // UPDATE STATUS
