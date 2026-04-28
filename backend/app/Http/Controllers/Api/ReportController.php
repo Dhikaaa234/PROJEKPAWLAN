@@ -13,25 +13,13 @@ class ReportController extends Controller
     // GET ALL REPORTS
     public function index()
     {
-        $user = Auth::user();
-
-        if ($user->role->nama_role === 'admin') {
-
-            $reports = Report::with([
-                'user',
-                'category',
-                'status'
-            ])->latest()->get();
-        } else {
-
-            $reports = Report::with([
-                'category',
-                'status'
-            ])
-                ->where('user_id', $user->id)
-                ->latest()
-                ->get();
-        }
+        $reports = Report::with([
+            'user',
+            'category',
+            'status'
+        ])
+            ->latest()
+            ->get();
 
         return response()->json([
             'message' => 'Data laporan berhasil diambil',
@@ -81,23 +69,11 @@ class ReportController extends Controller
     // DETAIL REPORT
     public function show($id)
     {
-        $user = Auth::user();
-
         $report = Report::with([
             'user',
             'category',
             'status'
         ])->findOrFail($id);
-
-        if (
-            $user->role->nama_role !== 'admin'
-            &&
-            $report->user_id !== $user->id
-        ) {
-            return response()->json([
-                'message' => 'Akses ditolak'
-            ], 403);
-        }
 
         return response()->json([
             'message' => 'Detail laporan',
