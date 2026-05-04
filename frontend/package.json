@@ -9,13 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.2.4",
     "axios": "^1.15.0",
     "pinia": "^3.0.4",
-    "vue": "^3.5.32",
-    "vue-router": "^5.0.4"
+    "vue": "^3.5.33",
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.13",
+    "tailwindcss": "^4.2.4",
     "vite": "^8.0.4"
   }
 }
