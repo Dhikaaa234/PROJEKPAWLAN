@@ -90,4 +90,37 @@ class AuthController extends Controller
     {
         return response()->json($request->user()->load('role'));
     }
+
+    // FORGOT PASSWORD
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            // For security, don't reveal if email exists or not
+            return response()->json([
+                'message' => 'Jika akun dengan email ini ada, link reset akan dikirim'
+            ]);
+        }
+
+        // TODO: Implement actual password reset email functionality
+        // For now, just return success message
+        // In production, you would:
+        // 1. Generate a token
+        // 2. Store it in database with expiration
+        // 3. Send email with reset link
+
+        Log::create([
+            'user_id' => $user->id,
+            'aktivitas' => 'User meminta reset password'
+        ]);
+
+        return response()->json([
+            'message' => 'Jika akun dengan email ini ada, link reset akan dikirim'
+        ]);
+    }
 }

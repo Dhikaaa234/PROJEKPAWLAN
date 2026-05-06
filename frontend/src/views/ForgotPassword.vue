@@ -37,7 +37,14 @@
           </span>
         </button>
 
-        <div v-if="sent" class="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div v-if="auth.error" class="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p class="font-semibold flex items-center gap-2">
+            <i class="fa-solid fa-circle-xmark"></i> Error
+          </p>
+          <p class="mt-1">{{ auth.error }}</p>
+        </div>
+
+        <div v-if="sent && !auth.error" class="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           <p class="font-semibold flex items-center gap-2">
             <i class="fa-solid fa-circle-check"></i> Check your inbox
           </p>
