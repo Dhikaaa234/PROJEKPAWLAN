@@ -79,6 +79,14 @@
           Remember me for 30 days
         </label>
 
+        <p
+          v-if="errorMessage"
+          class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2"
+        >
+          <i class="fa-solid fa-circle-exclamation mr-1"></i>
+          {{ errorMessage }}
+        </p>
+
         <button type="submit" class="btn-primary" :disabled="auth.loading">
           <span v-if="!auth.loading">Sign in to FilkomCare</span>
           <span v-else class="inline-flex items-center gap-2">
@@ -121,16 +129,37 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AuthLayout from '../components/AuthLayout.vue'
 import { useAuthStore } from '../stores/auth'
 
+const router = useRouter()
 const auth = useAuthStore()
+
 const email = ref('')
 const password = ref('')
 const remember = ref(false)
 const showPassword = ref(false)
+const errorMessage = ref('')
 
 async function onSubmit() {
-  await auth.login({ email: email.value, password: password.value, remember: remember.value })
+  errorMessage.value = ''
+
+  try {
+    const user = await auth.login({
+      email: email.value,
+      password: password.value,
+      remember: remember.value,
+    })
+
+    if (user.role === 'admin') {
+      router.push('/admin/dashboard')
+      return
+    }
+
+    router.push('/dashboard')
+  } catch (error) {
+    errorMessage.value = error.message || 'Login gagal. Silakan coba lagi.'
+  }
 }
 </script>
