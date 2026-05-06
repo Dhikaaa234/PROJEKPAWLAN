@@ -85,12 +85,20 @@
           </span>
         </button>
 
-        <p
+        <div
+          v-if="auth.error"
+          class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 flex items-start gap-2"
+        >
+          <i class="fa-solid fa-circle-xmark shrink-0 mt-0.5"></i>
+          <span>{{ auth.error }}</span>
+        </div>
+
+        <div
           v-if="auth.lastMessage"
           class="text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2"
         >
           <i class="fa-solid fa-circle-check mr-1"></i> {{ auth.lastMessage }}
-        </p>
+        </div>
 
         <p class="text-center text-sm text-slate-600">
           Already have an account?
