@@ -59,7 +59,7 @@ const stats = [
       <div class="min-w-0 flex-1">
         <DashboardTopbar />
 
-        <main class="px-5 py-8 md:px-8 lg:px-9 lg:py-10">
+        <main class="px-5 py-8 md:px-8 lg:px-9 lg:py-5">
           <section class="mx-auto max-w-[1280px]">
             <div class="mb-8">
               <h1 class="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">

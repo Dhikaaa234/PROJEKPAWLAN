@@ -135,7 +135,7 @@ function getReportImageClass(type) {
       <div class="min-w-0 flex-1">
         <DashboardTopbar />
 
-        <main class="px-5 py-8 md:px-8 lg:px-10">
+        <main class="px-5 py-5 md:px-8 lg:px-10">
           <section class="mx-auto max-w-[1240px]">
             <div class="mb-8 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div>

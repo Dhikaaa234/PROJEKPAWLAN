@@ -172,16 +172,6 @@ async function submitReport() {
           </h2>
 
           <div class="flex items-center gap-4">
-            <label
-              class="hidden h-9 items-center gap-2 rounded-full bg-slate-100 px-4 text-sm text-slate-500 md:flex"
-            >
-              <Search :size="16" />
-              <input
-                type="search"
-                placeholder="Cari laporan..."
-                class="w-32 border-none bg-transparent text-sm outline-none placeholder:text-slate-500"
-              />
-            </label>
 
             <button
               type="button"

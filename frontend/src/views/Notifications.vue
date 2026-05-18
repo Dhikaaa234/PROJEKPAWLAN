@@ -185,16 +185,6 @@ function markAllAsRead() {
           </h2>
 
           <div class="flex items-center gap-4">
-            <label
-              class="hidden h-9 items-center gap-2 rounded-full bg-slate-100 px-4 text-sm text-slate-500 md:flex"
-            >
-              <Search :size="16" />
-              <input
-                type="search"
-                placeholder="Cari laporan..."
-                class="w-32 border-none bg-transparent text-sm outline-none placeholder:text-slate-500"
-              />
-            </label>
 
             <button
               type="button"
@@ -296,7 +286,7 @@ function markAllAsRead() {
           </button>
         </aside>
 
-        <main class="px-5 py-8 md:px-8 lg:px-10">
+        <main class="px-5 py-5 md:px-8 lg:px-10">
           <section class="mx-auto max-w-[1280px]">
             <div class="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
