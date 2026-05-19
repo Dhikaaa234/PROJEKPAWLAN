@@ -16,9 +16,9 @@ class AdminMiddleware
             ], 401);
         }
 
-        if ($request->user()->role->nama_role !== 'admin') {
+        if ($request->user()->role?->name !== 'admin') {
             return response()->json([
-                'message' => 'Akses ditolak. Admin only.'
+                'message' => 'Akses admin diperlukan'
             ], 403);
         }
 

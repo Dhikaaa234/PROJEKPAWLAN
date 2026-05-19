@@ -2,125 +2,97 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\User;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Models\Role;
+use App\Models\User;
+use App\Support\ApiFormatter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use App\Models\Log;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
-    // REGISTER
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'nama' => 'required|string|max:100',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
+            'nama' => ['nullable', 'required_without:name', 'string', 'max:100'],
+            'name' => ['nullable', 'required_without:nama', 'string', 'max:100'],
+            'nim' => ['nullable', 'string', 'max:30'],
+            'email' => ['required', 'email', 'unique:users,email'],
+            'password' => ['required', Password::min(6)],
         ]);
+
+        $name = $validated['nama'] ?? $validated['name'] ?? null;
+        $userRole = Role::where('name', 'user')->firstOrFail();
 
         $user = User::create([
-            'nama' => $validated['nama'],
+            'nama' => $name,
+            'name' => $name,
+            'nim' => $validated['nim'] ?? null,
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role_id' => 2 // default user
+            'role_id' => $userRole->id,
         ]);
-
-        Log::create([
-            'user_id' => $user->id,
-            'aktivitas' => 'User melakukan registrasi'
-        ]);
-
-        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Register berhasil',
-            'token' => $token,
-            'user' => $user
+            'token' => $user->createToken('auth_token')->plainTextToken,
+            'user' => ApiFormatter::user($user),
         ], 201);
     }
 
-    // LOGIN
     public function login(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required'
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with('role')->where('email', $credentials['email'])->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user || !Hash::check($credentials['password'], $user->password)) {
             return response()->json([
-                'message' => 'Email atau password salah'
+                'message' => 'Email atau password salah',
             ], 401);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        Log::create([
-            'user_id' => $user->id,
-            'aktivitas' => 'User login ke sistem'
-        ]);
-
         return response()->json([
-            'message' => 'Login berhasil',
-            'token' => $token,
-            'user' => $user
+            'token' => $user->createToken('auth_token')->plainTextToken,
+            'user' => ApiFormatter::user($user),
         ]);
     }
 
-    // LOGOUT
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-
-        Log::create([
-            'user_id' => $request->user()->id,
-            'aktivitas' => 'User logout dari sistem'
-        ]);
+        $request->user()->currentAccessToken()?->delete();
 
         return response()->json([
-            'message' => 'Logout berhasil'
+            'message' => 'Logout berhasil',
         ]);
     }
 
-    // GET CURRENT USER
     public function me(Request $request)
     {
-        return response()->json($request->user()->load('role'));
+        return response()->json([
+            'user' => ApiFormatter::user($request->user()),
+        ]);
     }
 
-    // FORGOT PASSWORD
     public function forgotPassword(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email'
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $validated['email'])->first();
 
         if (!$user) {
-            // For security, don't reveal if email exists or not
             return response()->json([
-                'message' => 'Jika akun dengan email ini ada, link reset akan dikirim'
-            ]);
+                'message' => 'Email tidak ditemukan',
+            ], 404);
         }
 
-        // TODO: Implement actual password reset email functionality
-        // For now, just return success message
-        // In production, you would:
-        // 1. Generate a token
-        // 2. Store it in database with expiration
-        // 3. Send email with reset link
-
-        Log::create([
-            'user_id' => $user->id,
-            'aktivitas' => 'User meminta reset password'
-        ]);
-
         return response()->json([
-            'message' => 'Jika akun dengan email ini ada, link reset akan dikirim'
+            'message' => 'Permintaan reset password diterima',
         ]);
     }
 }

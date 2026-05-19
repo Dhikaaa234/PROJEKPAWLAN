@@ -9,13 +9,10 @@ class Role extends Model
 {
     use HasFactory;
 
-    public $timestamps = false;
-
     protected $fillable = [
-        'nama_role',
+        'name',
     ];
 
-    // RELATION
     public function users()
     {
         return $this->hasMany(User::class);

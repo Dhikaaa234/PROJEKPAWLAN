@@ -1,235 +1,214 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import {
-  BarChart3,
-  Bell,
-  Building2,
-  Camera,
-  CheckCircle2,
-  ChevronLeft,
-  CirclePlus,
-  FileImage,
-  Image,
-  LayoutDashboard,
-  ListChecks,
-  LogOut,
-  MapPin,
-  Send,
-  UserSearch,
-  X,
-} from 'lucide-vue-next'
-import { useAuthStore } from '../stores/auth'
-import api, { reportAPI } from '../services/api'
-import DashboardSidebar from '../components/DashboardSidebar.vue'
-import DashboardTopbar from '../components/DashboardTopbar.vue'
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { BarChart3, Bell, Building2, Camera, CheckCircle2, ChevronLeft, CirclePlus, FileImage, Image, LayoutDashboard, ListChecks, LogOut, MapPin, Send, UserSearch, X } from "lucide-vue-next";
+import { useAuthStore } from "../stores/auth";
+import api, { reportAPI } from "../services/api";
+import DashboardSidebar from "../components/DashboardSidebar.vue";
+import DashboardTopbar from "../components/DashboardTopbar.vue";
 
-const router = useRouter()
-const route = useRoute()
-const auth = useAuthStore()
+const router = useRouter();
+const route = useRoute();
+const auth = useAuthStore();
 
-const isMobileMenuOpen = ref(false)
-const isSubmitting = ref(false)
-const isLoadingOptions = ref(false)
-const fileInput = ref(null)
-const selectedImageFile = ref(null)
-const selectedImagePreview = ref('')
-const imageError = ref('')
-const maxImageSize = 5 * 1024 * 1024
-const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp']
+const isMobileMenuOpen = ref(false);
+const isSubmitting = ref(false);
+const isLoadingOptions = ref(false);
+const fileInput = ref(null);
+const selectedImageFile = ref(null);
+const selectedImagePreview = ref("");
+const imageError = ref("");
+const maxImageSize = 5 * 1024 * 1024;
+const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 
 const form = ref({
-  title: '',
-  category: '',
-  location: '',
-  description: '',
-})
+  title: "",
+  category: "",
+  location: "",
+  description: "",
+});
 
-const categories = ref([])
-const similarReports = ref([])
-const reportSummary = ref(null)
+const categories = ref([]);
+const similarReports = ref([]);
+const reportSummary = ref(null);
 
 const menuItems = [
   {
-    label: 'Dashboard',
+    label: "Dashboard",
     icon: LayoutDashboard,
-    path: '/dashboard',
+    path: "/dashboard",
   },
   {
-    label: 'Semua Laporan',
+    label: "Semua Laporan",
     icon: BarChart3,
-    path: '/semua-laporan',
+    path: "/semua-laporan",
   },
   {
-    label: 'Laporan Saya',
+    label: "Laporan Saya",
     icon: UserSearch,
-    path: '/laporan-saya',
+    path: "/laporan-saya",
   },
   {
-    label: 'Buat Laporan',
+    label: "Buat Laporan",
     icon: CirclePlus,
-    path: '/buat-laporan',
+    path: "/buat-laporan",
   },
   {
-    label: 'Notifikasi',
+    label: "Notifikasi",
     icon: Bell,
-    path: '/notifikasi',
+    path: "/notifikasi",
   },
-]
+];
 
-const emptyPhotoSlots = computed(() => 2)
+const emptyPhotoSlots = computed(() => 2);
 
-const monthlyReportTotal = computed(
-  () => reportSummary.value?.monthlyTotal ?? reportSummary.value?.monthly_total ?? ''
-)
+const monthlyReportTotal = computed(() => reportSummary.value?.monthlyTotal ?? reportSummary.value?.monthly_total ?? "");
 
 function unwrapResponse(response) {
-  return response?.data?.data ?? response?.data ?? {}
+  return response?.data?.data ?? response?.data ?? {};
 }
 
 function getStatusTextClass(status) {
-  if (status === 'Dikirim') return 'text-amber-700'
-  if (status === 'Diproses') return 'text-blue-700'
-  if (status === 'Selesai') return 'text-green-700'
-  if (status === 'Dibatalkan') return 'text-red-700'
-  return 'text-slate-600'
+  if (status === "Dikirim") return "text-amber-700";
+  if (status === "Diproses") return "text-blue-700";
+  if (status === "Selesai") return "text-green-700";
+  if (status === "Dibatalkan") return "text-red-700";
+  return "text-slate-600";
 }
 
 function normalizeSimilarReport(report) {
   return {
     id: report.id ?? report.code ?? report.reportId,
-    title: report.title ?? '',
-    time: report.time ?? report.createdAt ?? report.created_at ?? '',
-    status: report.status ?? '',
+    title: report.title ?? "",
+    time: report.time ?? report.createdAt ?? report.created_at ?? "",
+    status: report.status ?? "",
     statusClass: report.statusClass ?? getStatusTextClass(report.status),
-    imageClass: report.imageClass ?? 'from-slate-950 via-slate-700 to-slate-400',
-  }
+    imageClass: report.imageClass ?? "from-slate-950 via-slate-700 to-slate-400",
+  };
 }
 
 async function fetchReportOptions() {
-  isLoadingOptions.value = true
+  isLoadingOptions.value = true;
 
   try {
-    const response = await api.get('/reports/options')
-    const payload = unwrapResponse(response)
+    const response = await api.get("/reports/options");
+    const payload = unwrapResponse(response);
 
-    categories.value = Array.isArray(payload.categories) ? payload.categories : []
-    similarReports.value = Array.isArray(payload.similarReports)
-      ? payload.similarReports.map(normalizeSimilarReport)
-      : []
-    reportSummary.value = payload.reportSummary ?? payload.summary ?? null
+    categories.value = Array.isArray(payload.categories) ? payload.categories : [];
+    similarReports.value = Array.isArray(payload.similarReports) ? payload.similarReports.map(normalizeSimilarReport) : [];
+    reportSummary.value = payload.reportSummary ?? payload.summary ?? null;
   } catch (error) {
-    categories.value = []
-    similarReports.value = []
-    reportSummary.value = null
+    categories.value = [];
+    similarReports.value = [];
+    reportSummary.value = null;
   } finally {
-    isLoadingOptions.value = false
+    isLoadingOptions.value = false;
   }
 }
 
 function isActive(path) {
-  return route.path === path
+  return route.path === path;
 }
 
 function goTo(path) {
   if (route.path !== path) {
-    router.push(path)
+    router.push(path);
   }
 
-  closeMobileMenu()
+  closeMobileMenu();
 }
 
 function toggleMobileMenu() {
-  isMobileMenuOpen.value = !isMobileMenuOpen.value
+  isMobileMenuOpen.value = !isMobileMenuOpen.value;
 }
 
 function closeMobileMenu() {
-  isMobileMenuOpen.value = false
+  isMobileMenuOpen.value = false;
 }
 
 function logout() {
-  auth.logout()
-  closeMobileMenu()
-  router.push('/login')
+  auth.logout();
+  closeMobileMenu();
+  router.push("/login");
 }
 
 function cancelForm() {
-  router.push('/dashboard')
+  router.push("/dashboard");
 }
 
 function goToAllReports() {
-  router.push('/semua-laporan')
+  router.push("/semua-laporan");
 }
 
 function openPhotoPicker() {
-  fileInput.value?.click()
+  fileInput.value?.click();
 }
 
 function handleImageChange(event) {
-  const file = event.target.files?.[0] ?? null
-  imageError.value = ''
+  const file = event.target.files?.[0] ?? null;
+  imageError.value = "";
 
-  if (!file) return
+  if (!file) return;
 
   if (!allowedImageTypes.includes(file.type)) {
-    imageError.value = 'Format gambar harus JPG, PNG, atau WEBP.'
-    event.target.value = ''
-    return
+    imageError.value = "Format gambar harus JPG, PNG, atau WEBP.";
+    event.target.value = "";
+    return;
   }
 
   if (file.size > maxImageSize) {
-    imageError.value = 'Ukuran gambar maksimal 5MB.'
-    event.target.value = ''
-    return
+    imageError.value = "Ukuran gambar maksimal 5MB.";
+    event.target.value = "";
+    return;
   }
 
   if (selectedImagePreview.value) {
-    URL.revokeObjectURL(selectedImagePreview.value)
+    URL.revokeObjectURL(selectedImagePreview.value);
   }
 
-  selectedImageFile.value = file
-  selectedImagePreview.value = URL.createObjectURL(file)
-  event.target.value = ''
+  selectedImageFile.value = file;
+  selectedImagePreview.value = URL.createObjectURL(file);
+  event.target.value = "";
 }
 
 function removeImage() {
   if (selectedImagePreview.value) {
-    URL.revokeObjectURL(selectedImagePreview.value)
+    URL.revokeObjectURL(selectedImagePreview.value);
   }
 
-  selectedImageFile.value = null
-  selectedImagePreview.value = ''
-  imageError.value = ''
+  selectedImageFile.value = null;
+  selectedImagePreview.value = "";
+  imageError.value = "";
 }
 
 async function submitReport() {
-  isSubmitting.value = true
+  isSubmitting.value = true;
 
   try {
-    const payload = new FormData()
-    payload.append('title', form.value.title)
-    payload.append('category', form.value.category)
-    payload.append('location', form.value.location)
-    payload.append('description', form.value.description)
+    const payload = new FormData();
+    payload.append("title", form.value.title);
+    payload.append("category", form.value.category);
+    payload.append("location", form.value.location);
+    payload.append("description", form.value.description);
     if (selectedImageFile.value) {
-      payload.append('image', selectedImageFile.value)
+      payload.append("image", selectedImageFile.value);
     }
 
-    await reportAPI.createReport(payload)
+    await reportAPI.createReport(payload);
 
-    router.push('/laporan-saya')
+    router.push("/laporan-saya");
   } finally {
-    isSubmitting.value = false
+    isSubmitting.value = false;
   }
 }
 
-onMounted(fetchReportOptions)
+onMounted(fetchReportOptions);
 
 onUnmounted(() => {
   if (selectedImagePreview.value) {
-    URL.revokeObjectURL(selectedImagePreview.value)
+    URL.revokeObjectURL(selectedImagePreview.value);
   }
-})
+});
 </script>
 
 <template>
@@ -240,38 +219,22 @@ onUnmounted(() => {
       <div class="min-w-0 flex-1">
         <DashboardTopbar />
 
-        <button
-          type="button"
-          class="fixed bottom-5 right-5 z-50 grid size-12 place-items-center rounded-full bg-blue-700 text-white shadow-lg lg:hidden"
-          aria-label="Toggle menu"
-          @click="toggleMobileMenu"
-        >
+        <button type="button" class="fixed bottom-5 right-5 z-50 grid size-12 place-items-center rounded-full bg-blue-700 text-white shadow-lg lg:hidden" aria-label="Toggle menu" @click="toggleMobileMenu">
           <CirclePlus v-if="!isMobileMenuOpen" :size="24" />
           <ChevronLeft v-else :size="24" />
         </button>
 
-        <div
-          v-if="isMobileMenuOpen"
-          class="fixed inset-0 z-40 bg-slate-950/40 lg:hidden"
-          @click="closeMobileMenu"
-        ></div>
+        <div v-if="isMobileMenuOpen" class="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" @click="closeMobileMenu"></div>
 
-        <aside
-          class="fixed bottom-0 left-0 top-0 z-50 flex w-[280px] transform flex-col bg-white p-5 shadow-2xl transition lg:hidden"
-          :class="isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'"
-        >
+        <aside class="fixed bottom-0 left-0 top-0 z-50 flex w-[280px] transform flex-col bg-white p-5 shadow-2xl transition lg:hidden" :class="isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'">
           <div class="mb-8 flex items-center gap-3">
             <div class="grid size-10 place-items-center rounded-lg bg-blue-600 text-white">
               <Building2 :size="22" />
             </div>
 
             <div>
-              <h1 class="text-xl font-extrabold text-slate-950">
-                FilkomCare
-              </h1>
-              <p class="text-xs font-extrabold uppercase tracking-wide text-blue-700">
-                Facility Management
-              </p>
+              <h1 class="text-xl font-extrabold text-slate-950">FilkomCare</h1>
+              <p class="text-xs font-extrabold uppercase tracking-wide text-blue-700">Facility Management</p>
             </div>
           </div>
 
@@ -282,22 +245,14 @@ onUnmounted(() => {
               type="button"
               @click="goTo(item.path)"
               class="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-medium transition"
-              :class="
-                isActive(item.path)
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-blue-700'
-              "
+              :class="isActive(item.path) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-700'"
             >
               <component :is="item.icon" :size="21" />
               <span>{{ item.label }}</span>
             </button>
           </nav>
 
-          <button
-            type="button"
-            @click="logout"
-            class="mt-auto flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700"
-          >
+          <button type="button" @click="logout" class="mt-auto flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700">
             <LogOut :size="21" />
             <span>Logout</span>
           </button>
@@ -305,24 +260,15 @@ onUnmounted(() => {
 
         <main class="px-5 py-8 md:px-8 lg:px-10">
           <section class="mx-auto grid max-w-[1280px] gap-6 xl:grid-cols-[1fr_390px]">
-            <form
-              class="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm"
-              @submit.prevent="submitReport"
-            >
+            <form class="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm" @submit.prevent="submitReport">
               <div class="border-b border-slate-300 px-6 py-6">
-                <h1 class="text-xl font-medium text-slate-950">
-                  Informasi Laporan
-                </h1>
-                <p class="mt-2 text-base text-slate-600">
-                  Lengkapi detail kerusakan atau masalah fasilitas di bawah ini.
-                </p>
+                <h1 class="text-xl font-medium text-slate-950">Informasi Laporan</h1>
+                <p class="mt-2 text-base text-slate-600">Lengkapi detail kerusakan atau masalah fasilitas di bawah ini.</p>
               </div>
 
               <div class="space-y-7 px-6 py-7">
                 <div>
-                  <label for="title" class="mb-3 block text-base font-medium text-slate-700">
-                    Judul Laporan
-                  </label>
+                  <label for="title" class="mb-3 block text-base font-medium text-slate-700"> Judul Laporan </label>
 
                   <input
                     id="title"
@@ -336,9 +282,7 @@ onUnmounted(() => {
 
                 <div class="grid gap-6 md:grid-cols-2">
                   <div>
-                    <label for="category" class="mb-3 block text-base font-medium text-slate-700">
-                      Kategori
-                    </label>
+                    <label for="category" class="mb-3 block text-base font-medium text-slate-700"> Kategori </label>
 
                     <div class="relative">
                       <select
@@ -348,32 +292,20 @@ onUnmounted(() => {
                         class="h-13 w-full appearance-none rounded-lg border border-slate-300 bg-white px-4 pr-10 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                       >
                         <option value="" disabled>Pilih Kategori</option>
-                        <option
-                          v-for="category in categories"
-                          :key="category"
-                          :value="category"
-                        >
+                        <option v-for="category in categories" :key="category" :value="category">
                           {{ category }}
                         </option>
                       </select>
 
-                      <ChevronLeft
-                        :size="18"
-                        class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 -rotate-90 text-slate-500"
-                      />
+                      <ChevronLeft :size="18" class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 -rotate-90 text-slate-500" />
                     </div>
                   </div>
 
                   <div>
-                    <label for="location" class="mb-3 block text-base font-medium text-slate-700">
-                      Lokasi Spesifik
-                    </label>
+                    <label for="location" class="mb-3 block text-base font-medium text-slate-700"> Lokasi Spesifik </label>
 
                     <div class="relative">
-                      <MapPin
-                        :size="20"
-                        class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-                      />
+                      <MapPin :size="20" class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
 
                       <input
                         id="location"
@@ -388,9 +320,7 @@ onUnmounted(() => {
                 </div>
 
                 <div>
-                  <label for="description" class="mb-3 block text-base font-medium text-slate-700">
-                    Deskripsi Kerusakan
-                  </label>
+                  <label for="description" class="mb-3 block text-base font-medium text-slate-700"> Deskripsi Kerusakan </label>
 
                   <textarea
                     id="description"
@@ -403,18 +333,10 @@ onUnmounted(() => {
                 </div>
 
                 <div>
-                  <label class="mb-3 block text-base font-medium text-slate-700">
-                    Foto Bukti
-                  </label>
+                  <label class="mb-3 block text-base font-medium text-slate-700"> Foto Bukti </label>
 
                   <div class="grid gap-4 sm:grid-cols-3">
-                    <input
-                      ref="fileInput"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      class="hidden"
-                      @change="handleImageChange"
-                    />
+                    <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleImageChange" />
 
                     <button
                       v-if="!selectedImageFile"
@@ -424,21 +346,12 @@ onUnmounted(() => {
                     >
                       <div class="text-center">
                         <Camera :size="36" class="mx-auto mb-3" />
-                        <p class="text-base font-medium">
-                          Unggah
-                        </p>
+                        <p class="text-base font-medium">Unggah</p>
                       </div>
                     </button>
 
-                    <div
-                      v-else
-                      class="relative grid h-[170px] place-items-center overflow-hidden rounded-lg border border-slate-300 bg-slate-100"
-                    >
-                      <img
-                        :src="selectedImagePreview"
-                        :alt="selectedImageFile.name"
-                        class="absolute inset-0 size-full object-cover"
-                      />
+                    <div v-else class="relative grid h-[170px] place-items-center overflow-hidden rounded-lg border border-slate-300 bg-slate-100">
+                      <img :src="selectedImagePreview" :alt="selectedImageFile.name" class="absolute inset-0 size-full object-cover" />
 
                       <button
                         type="button"
@@ -450,39 +363,21 @@ onUnmounted(() => {
                       </button>
                     </div>
 
-                    <div
-                      v-for="slot in emptyPhotoSlots"
-                      :key="`empty-${slot}`"
-                      class="relative grid h-[170px] place-items-center overflow-hidden rounded-lg border border-slate-300 bg-slate-100"
-                    >
-                      <FileImage
-                        :size="24"
-                        class="text-slate-500"
-                      />
+                    <div v-for="slot in emptyPhotoSlots" :key="`empty-${slot}`" class="relative grid h-[170px] place-items-center overflow-hidden rounded-lg border border-slate-300 bg-slate-100">
+                      <FileImage :size="24" class="text-slate-500" />
                     </div>
                   </div>
 
-                  <p class="mt-3 text-sm italic text-slate-600">
-                    Format: JPG, PNG, WEBP. Maksimal ukuran file: 5MB.
-                  </p>
+                  <p class="mt-3 text-sm italic text-slate-600">Format: JPG, PNG, WEBP. Maksimal ukuran file: 5MB.</p>
 
-                  <p
-                    v-if="imageError"
-                    class="mt-2 text-sm font-medium text-red-600"
-                  >
+                  <p v-if="imageError" class="mt-2 text-sm font-medium text-red-600">
                     {{ imageError }}
                   </p>
                 </div>
               </div>
 
               <div class="flex flex-col gap-3 border-t border-slate-300 px-6 py-6 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  @click="cancelForm"
-                  class="h-12 rounded-lg border border-slate-400 bg-white px-8 text-base font-medium text-slate-800 transition hover:bg-slate-50"
-                >
-                  Batal
-                </button>
+                <button type="button" @click="cancelForm" class="h-12 rounded-lg border border-slate-400 bg-white px-8 text-base font-medium text-slate-800 transition hover:bg-slate-50">Batal</button>
 
                 <button
                   type="submit"
@@ -503,9 +398,7 @@ onUnmounted(() => {
 
                 <div class="mb-5 flex items-center gap-3">
                   <ListChecks :size="25" class="text-slate-900" />
-                  <h2 class="text-xl font-medium">
-                    Tips Melapor
-                  </h2>
+                  <h2 class="text-xl font-medium">Tips Melapor</h2>
                 </div>
 
                 <div class="space-y-5 text-base leading-relaxed text-slate-900">
@@ -528,25 +421,14 @@ onUnmounted(() => {
 
               <section class="rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
                 <div class="mb-7 flex items-center justify-between">
-                  <h2 class="text-xl font-medium text-slate-950">
-                    Laporan Mirip Terdekat
-                  </h2>
+                  <h2 class="text-xl font-medium text-slate-950">Laporan Mirip Terdekat</h2>
 
-                  <span class="rounded bg-yellow-300 px-2 py-1 text-[10px] font-extrabold text-yellow-900">
-                    LIVE DATA
-                  </span>
+                  <span class="rounded bg-yellow-300 px-2 py-1 text-[10px] font-extrabold text-yellow-900"> LIVE DATA </span>
                 </div>
 
                 <div class="space-y-7">
-                  <article
-                    v-for="report in similarReports"
-                    :key="report.id"
-                    class="flex items-center gap-4"
-                  >
-                    <div
-                      class="grid size-12 shrink-0 place-items-center overflow-hidden rounded bg-gradient-to-br"
-                      :class="report.imageClass"
-                    >
+                  <article v-for="report in similarReports" :key="report.id" class="flex items-center gap-4">
+                    <div class="grid size-12 shrink-0 place-items-center overflow-hidden rounded bg-gradient-to-br" :class="report.imageClass">
                       <Image :size="18" class="text-white/70" />
                     </div>
 
@@ -565,27 +447,13 @@ onUnmounted(() => {
                     </div>
                   </article>
 
-                  <p
-                    v-if="similarReports.length === 0 && !isLoadingOptions"
-                    class="text-sm font-medium text-slate-500"
-                  >
-                    Belum ada laporan mirip di area ini.
-                  </p>
+                  <p v-if="similarReports.length === 0 && !isLoadingOptions" class="text-sm font-medium text-slate-500">Belum ada laporan mirip di area ini.</p>
                 </div>
 
-                <button
-                  type="button"
-                  @click="goToAllReports"
-                  class="mt-8 w-full text-center text-base font-medium text-blue-700 transition hover:text-blue-900"
-                >
-                  Lihat semua laporan di area ini
-                </button>
+                <button type="button" @click="goToAllReports" class="mt-8 w-full text-center text-base font-medium text-blue-700 transition hover:text-blue-900">Lihat semua laporan di area ini</button>
               </section>
 
-              <section
-                v-if="monthlyReportTotal !== ''"
-                class="rounded-xl border border-slate-300 bg-white p-6 shadow-sm"
-              >
+              <section v-if="monthlyReportTotal !== ''" class="rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
                 <div class="flex items-center gap-4">
                   <div class="grid size-12 place-items-center rounded-full bg-blue-100 text-blue-700">
                     <Send :size="24" />
@@ -593,9 +461,7 @@ onUnmounted(() => {
 
                   <p class="text-base leading-relaxed text-slate-600">
                     Anda telah membuat<br />
-                    <span class="font-bold text-slate-950">
-                      {{ monthlyReportTotal }} Laporan
-                    </span>
+                    <span class="font-bold text-slate-950"> {{ monthlyReportTotal }} Laporan </span>
                     Bulan Ini
                   </p>
                 </div>

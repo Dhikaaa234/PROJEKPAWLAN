@@ -13,6 +13,8 @@ class User extends Authenticatable
 
     protected $fillable = [
         'nama',
+        'name',
+        'nim',
         'email',
         'password',
         'role_id',
@@ -44,6 +46,21 @@ class User extends Authenticatable
 
     public function logs()
     {
-        return $this->hasMany(Log::class);
+        return $this->hasMany(ReportLog::class);
+    }
+
+    public function reportLogs()
+    {
+        return $this->hasMany(ReportLog::class);
+    }
+
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+
+    public function getRoleNameAttribute(): string
+    {
+        return $this->role?->name ?? 'user';
     }
 }

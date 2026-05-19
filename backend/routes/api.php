@@ -1,37 +1,52 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\CategoryController;
-
-/*
-|--------------------------------------------------------------------------
-| PUBLIC ROUTES
-|--------------------------------------------------------------------------
-*/
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\StatusController;
+use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 
-/*
-|--------------------------------------------------------------------------
-| PROTECTED ROUTES
-|--------------------------------------------------------------------------
-*/
-
 Route::middleware('auth:sanctum')->group(function () {
-
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
-    // REPORTS
-    Route::apiResource('reports', ReportController::class);
-
-    // UPDATE STATUS
-    Route::patch('/reports/{id}/status', [ReportController::class, 'updateStatus'])->middleware('admin');
-
-    // CATEGORIES
     Route::get('/categories', [CategoryController::class, 'index']);
-}); 
+    Route::get('/statuses', [StatusController::class, 'index']);
+
+    Route::get('/user/dashboard', [DashboardController::class, 'userDashboard']);
+    Route::get('/dashboard', [DashboardController::class, 'userDashboard']);
+
+    Route::get('/reports/options', [ReportController::class, 'options']);
+    Route::get('/reports/my', [ReportController::class, 'myReports']);
+    Route::get('/my-reports', [ReportController::class, 'myReports']);
+    Route::get('/reports', [ReportController::class, 'index']);
+    Route::post('/reports', [ReportController::class, 'store']);
+    Route::get('/reports/{report}', [ReportController::class, 'show']);
+    Route::patch('/reports/{report}/cancel', [ReportController::class, 'cancel']);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::get('/notifications/{notification}', [NotificationController::class, 'show']);
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'read']);
+
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'adminDashboard']);
+        Route::get('/reports/stats', [DashboardController::class, 'adminReportStats']);
+        Route::get('/reports/export', [DashboardController::class, 'exportReports']);
+        Route::post('/reports/generate', [DashboardController::class, 'generateReport']);
+        Route::get('/reports', [ReportController::class, 'adminIndex']);
+        Route::get('/reports/{report}', [ReportController::class, 'adminShow']);
+        Route::patch('/reports/{report}/status', [ReportController::class, 'updateStatus']);
+
+        Route::get('/notifications', [NotificationController::class, 'adminIndex']);
+        Route::patch('/notifications/read-all', [NotificationController::class, 'adminReadAll']);
+        Route::get('/notifications/{notification}', [NotificationController::class, 'adminShow']);
+        Route::patch('/notifications/{notification}/read', [NotificationController::class, 'adminRead']);
+    });
+});
