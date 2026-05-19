@@ -21,6 +21,8 @@ class ApiFormatter
             'name' => $user->name ?? $user->nama,
             'nim' => $user->nim,
             'email' => $user->email,
+            'no_telepon' => $user->no_telepon,
+             'phone' => $user->no_telepon,
             'role' => $role,
             'roleLabel' => $role === 'admin' ? 'Super Admin' : 'Mahasiswa',
         ];

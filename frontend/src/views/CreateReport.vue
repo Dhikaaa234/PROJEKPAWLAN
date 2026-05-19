@@ -5,7 +5,7 @@
       <div class="min-w-0 flex-1">
         <DashboardTopbar />
 
-        <!-- mobile menu button dan aside (sama seperti sebelumnya) -->
+        <!-- mobile menu button dan aside -->
         <button type="button" class="fixed bottom-5 right-5 z-50 grid size-12 place-items-center rounded-full bg-blue-700 text-white shadow-lg lg:hidden" @click="toggleMobileMenu">
           <CirclePlus v-if="!isMobileMenuOpen" :size="24" /><ChevronLeft v-else :size="24" />
         </button>
@@ -43,8 +43,9 @@
                     <div class="relative">
                       <select id="category" v-model="form.category_id" required class="h-13 w-full appearance-none rounded-lg border border-slate-300 bg-white px-4 pr-10 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                         <option value="" disabled>{{ t.select_category }}</option>
+                        <!-- PERUBAHAN: tambahkan fallback || cat.name -->
                         <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                          {{ t[cat.key] }}
+                          {{ t[cat.key] || cat.name }}
                         </option>
                       </select>
                       <ChevronLeft :size="18" class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 -rotate-90 text-slate-500" />

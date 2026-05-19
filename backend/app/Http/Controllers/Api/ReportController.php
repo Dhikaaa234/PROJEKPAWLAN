@@ -33,27 +33,67 @@ class ReportController extends Controller
     }
 
     public function options(Request $request)
-    {
-        $recentReports = Report::query()
-            ->with(['user', 'category', 'status'])
-            ->latest()
-            ->limit(5)
-            ->get()
-            ->map(fn (Report $report) => ApiFormatter::report($report, $request->user()))
-            ->values();
+{
+    $user = $request->user();
 
-        return response()->json([
-            'categories' => Category::orderBy('name')->pluck('name')->values(),
-            'similarReports' => $recentReports,
-            'reportSummary' => [
-                'monthlyTotal' => Report::where('user_id', $request->user()->id)
-                    ->whereYear('created_at', now()->year)
-                    ->whereMonth('created_at', now()->month)
-                    ->count(),
-            ],
-        ]);
+    // Ambil semua kategori dengan format { id, key }
+    $categories = Category::all()->map(function ($category) {
+        // Mapping nama kategori ke key terjemahan yang sudah ada di frontend
+        // Sesuaikan mapping ini dengan isi file id.js dan en.js
+        $key = $this->mapCategoryNameToKey($category->name);
+        return [
+            'id' => $category->id,
+            'key' => $key,
+            'name' => $category->name, // optional, untuk fallback
+        ];
+    })->values();
+
+    // Laporan mirip (bisa dipertahankan seperti yang sudah ada)
+    $similarReports = Report::query()
+        ->with(['user', 'category', 'status'])
+        ->where('user_id', '!=', $user->id) // jangan tampilkan laporan sendiri
+        ->latest()
+        ->limit(5)
+        ->get()
+        ->map(fn(Report $report) => ApiFormatter::report($report, $user))
+        ->values();
+
+    // Jumlah laporan user bulan ini
+    $monthlyTotal = Report::where('user_id', $user->id)
+        ->whereYear('created_at', now()->year)
+        ->whereMonth('created_at', now()->month)
+        ->count();
+
+    return response()->json([
+        'categories' => $categories,
+        'similarReports' => $similarReports,
+        'reportSummary' => [
+            'monthlyTotal' => $monthlyTotal,
+            'monthly_total' => $monthlyTotal,
+        ],
+    ]);
+}
+
+// Helper untuk mapping nama kategori ke key terjemahan
+private function mapCategoryNameToKey(string $name): string
+{
+    // Mapping 4 kategori utama ke key terjemahan
+    $map = [
+        'Sarana belajar' => 'category_learning',
+        'Utilitas gedung' => 'category_utility',
+        'Fasilitas umum' => 'category_public',
+        'Inventaris & bangunan' => 'category_inventory',
+    ];
+
+    // Jika ditemukan dalam map, gunakan key tersebut
+    if (isset($map[$name])) {
+        return $map[$name];
     }
 
+    // Untuk kategori baru: tetap buat key unik, tapi nanti tidak ada di file terjemahan
+    // Frontend nanti bisa fallback ke nama asli (dari field 'name')
+    return 'category_' . strtolower(str_replace(' ', '_', $name));
+}
     public function store(Request $request)
     {
         $validated = $request->validate([

@@ -12,6 +12,8 @@
             <!-- Preferensi Bahasa -->
             <div class="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 class="text-xl font-bold text-slate-950">{{ t.preferences }}</h2>
+
+              <!-- Language Selector -->
               <div class="mt-4">
                 <label class="block text-sm font-medium text-slate-700">{{ t.language }}</label>
                 <select
@@ -23,6 +25,7 @@
                   <option value="en">{{ t.english }}</option>
                 </select>
               </div>
+
               <button
                 @click="savePreferences"
                 class="mt-6 rounded-lg bg-blue-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"

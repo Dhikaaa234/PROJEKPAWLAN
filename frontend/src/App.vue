@@ -1,10 +1,7 @@
 <template>
-  <div>
-    <router-view />
-  </div>
+  <router-view />
 </template>
 
 <script setup>
-import { useTheme } from './composables/useTheme'
-useTheme() // panggil agar dark mode aktif
+
 </script>
