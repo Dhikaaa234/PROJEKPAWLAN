@@ -2,6 +2,7 @@
 import { ChevronRight } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useLocale } from '../composables/useLocale'
 
 const props = defineProps({
   reports: {
@@ -15,6 +16,8 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const { t } = useLocale()
+
 const displayedReports = computed(() => props.reports.slice(0, 5))
 
 function getStatusClass(status) {
@@ -24,7 +27,6 @@ function getStatusClass(status) {
     Selesai: 'bg-green-50 text-green-600',
     Dibatalkan: 'bg-red-50 text-red-600',
   }
-
   return classes[status] || 'bg-slate-100 text-slate-600'
 }
 
@@ -44,42 +46,25 @@ function goToAllReports() {
 <template>
   <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
     <div class="flex items-center justify-between border-b border-slate-100 px-6 py-6">
-      <h2 class="text-xl font-extrabold text-slate-950">
-        Laporan Terbaru
-      </h2>
-
+      <h2 class="text-xl font-extrabold text-slate-950">{{ t.recent_reports }}</h2>
       <button
         type="button"
         @click="goToAllReports"
         class="text-sm font-bold leading-tight text-blue-700 transition hover:text-blue-900"
       >
-        Lihat<br />
-        Semua
+        {{ t.view_all }}
       </button>
     </div>
 
-    <div
-      v-if="isLoading"
-      class="px-6 py-10 text-center"
-    >
-      <p class="text-sm font-bold text-slate-600">
-        Memuat laporan terbaru...
-      </p>
+    <div v-if="isLoading" class="px-6 py-10 text-center">
+      <p class="text-sm font-bold text-slate-600">{{ t.loading || 'Memuat...' }}</p>
     </div>
 
-    <div
-      v-else-if="displayedReports.length === 0"
-      class="px-6 py-10 text-center"
-    >
-      <p class="text-sm font-bold text-slate-700">
-        Belum ada laporan terbaru.
-      </p>
+    <div v-else-if="displayedReports.length === 0" class="px-6 py-10 text-center">
+      <p class="text-sm font-bold text-slate-700">{{ t.no_recent }}</p>
     </div>
 
-    <div
-      v-else
-      class="divide-y divide-slate-100"
-    >
+    <div v-else class="divide-y divide-slate-100">
       <article
         v-for="report in displayedReports"
         :key="report.id"
@@ -95,36 +80,18 @@ function goToAllReports() {
             :alt="report.title"
             class="size-full object-cover"
           />
-
-          <span
-            v-else
-            class="truncate"
-          >
-            {{ getImageLabel(report) }}
-          </span>
+          <span v-else class="truncate">{{ getImageLabel(report) }}</span>
         </div>
 
         <div class="min-w-0 flex-1">
           <div class="mb-1 flex flex-wrap items-center gap-2">
-            <span
-              class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-              :class="getStatusClass(report.status)"
-            >
+            <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="getStatusClass(report.status)">
               {{ report.status }}
             </span>
-
-            <span class="text-sm text-slate-400">
-              {{ report.time }}
-            </span>
+            <span class="text-sm text-slate-400">{{ report.time }}</span>
           </div>
-
-          <h3 class="truncate text-sm font-bold text-slate-950 sm:text-base">
-            {{ report.title }}
-          </h3>
-
-          <p class="truncate text-sm text-slate-600">
-            {{ report.description }}
-          </p>
+          <h3 class="truncate text-sm font-bold text-slate-950 sm:text-base">{{ report.title }}</h3>
+          <p class="truncate text-sm text-slate-600">{{ report.description }}</p>
         </div>
 
         <button

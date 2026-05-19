@@ -25,14 +25,8 @@ const userInitials = computed(() => {
 })
 
 const userRoleLabel = computed(() => {
-  if (auth.user?.roleLabel) {
-    return auth.user.roleLabel
-  }
-
-  if (auth.user?.role === 'admin') {
-    return 'Super Admin'
-  }
-
+  if (auth.user?.roleLabel) return auth.user.roleLabel
+  if (auth.user?.role === 'admin') return 'Super Admin'
   return 'Mahasiswa'
 })
 
@@ -46,25 +40,30 @@ const notificationEndpoint = computed(() => {
 
 async function fetchUnreadNotifications() {
   if (!auth.isAuthenticated) return
-
   try {
     const response = await api.get(notificationEndpoint.value)
     const payload = response?.data?.data ?? response?.data ?? {}
-
     const notifications = Array.isArray(payload)
       ? payload
       : payload.notifications || payload.items || []
-
-    unreadNotificationCount.value = notifications.filter((notification) => {
-      return Boolean(notification.unread ?? !notification.read_at)
-    }).length
-  } catch (error) {
+    unreadNotificationCount.value = notifications.filter((n) =>
+      Boolean(n.unread ?? !n.read_at)
+    ).length
+  } catch {
     unreadNotificationCount.value = 0
   }
 }
 
 function goToNotifications() {
   router.push(notificationPath.value)
+}
+
+function goToSettings() {
+  router.push('/settings')
+}
+
+function goToProfile() {
+  router.push('/profile')
 }
 
 onMounted(() => {
@@ -81,6 +80,7 @@ onMounted(() => {
     </h2>
 
     <div class="flex items-center gap-4">
+      <!-- Notifikasi -->
       <button
         type="button"
         aria-label="Notifikasi"
@@ -88,7 +88,6 @@ onMounted(() => {
         class="relative grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
       >
         <Bell :size="20" />
-
         <span
           v-if="unreadNotificationCount > 0"
           class="absolute right-1.5 top-1.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-white"
@@ -97,9 +96,11 @@ onMounted(() => {
         </span>
       </button>
 
+      <!-- Pengaturan -->
       <button
         type="button"
         aria-label="Pengaturan"
+        @click="goToSettings"
         class="grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
       >
         <Settings :size="20" />
@@ -107,20 +108,22 @@ onMounted(() => {
 
       <div class="hidden h-8 w-px bg-slate-200 md:block"></div>
 
-      <div class="flex items-center gap-3">
+      <!-- Profil user: klik avatar atau nama akan ke halaman profil -->
+      <div
+        class="flex cursor-pointer items-center gap-3"
+        @click="goToProfile"
+        role="button"
+        tabindex="0"
+        @keydown.enter="goToProfile"
+      >
         <div
           class="grid size-10 place-items-center rounded-full bg-orange-100 text-sm font-extrabold text-orange-700 ring-2 ring-orange-50"
         >
           {{ userInitials }}
         </div>
-
         <div class="hidden leading-tight sm:block">
-          <p class="text-sm font-bold text-slate-950">
-            {{ displayName }}
-          </p>
-          <p class="text-xs text-slate-500">
-            {{ userRoleLabel }}
-          </p>
+          <p class="text-sm font-bold text-slate-950">{{ displayName }}</p>
+          <p class="text-xs text-slate-500">{{ userRoleLabel }}</p>
         </div>
       </div>
     </div>

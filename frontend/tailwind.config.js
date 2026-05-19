@@ -1,6 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
+  darkMode: 'class',          // from your second block
+  content: [
+    './index.html',
+    './src/**/*.{vue,js,ts,jsx,tsx}'
+  ],
   theme: {
     extend: {
       colors: {
@@ -18,8 +22,8 @@ export default {
         display: ['"Sora"', '"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui']
       },
       boxShadow: {
-        'soft': '0 4px 20px -4px rgba(15, 23, 42, 0.08)',
-        'glow': '0 8px 30px -8px rgba(29, 78, 216, 0.45)'
+        soft: '0 4px 20px -4px rgba(15, 23, 42, 0.08)',
+        glow: '0 8px 30px -8px rgba(29, 78, 216, 0.45)'
       }
     }
   },

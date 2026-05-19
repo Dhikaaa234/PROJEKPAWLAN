@@ -12,6 +12,9 @@ import DashboardSidebar from '../components/DashboardSidebar.vue'
 import DashboardTopbar from '../components/DashboardTopbar.vue'
 import DashboardStatCard from '../components/DashboardStatCard.vue'
 import DashboardRecentReports from '../components/DashboardRecentReports.vue'
+import { useLocale } from '../composables/useLocale'
+
+const { t } = useLocale()
 
 const RECENT_REPORT_LIMIT = 5
 
@@ -129,10 +132,10 @@ onMounted(fetchDashboard)
           <section class="mx-auto max-w-[1280px]">
             <div class="mb-8">
               <h1 class="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
-                Selamat Datang!
+                {{ t.welcome }}
               </h1>
               <p class="mt-3 text-base text-slate-600 md:text-lg">
-                Berikut adalah ringkasan laporan fasilitas yang tersedia.
+                {{ t.dashboard_desc }}
               </p>
             </div>
 

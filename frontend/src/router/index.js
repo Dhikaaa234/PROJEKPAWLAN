@@ -12,6 +12,8 @@ import Notifications from '../views/Notifications.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import AdminReportManagement from '../views/AdminReportManagement.vue'
 import AdminNotifications from '../views/AdminNotifications.vue'
+import Profile from '../views/Profile.vue'
+import Settings from '../views/Settings.vue'
 
 const routes = [
   {
@@ -86,6 +88,18 @@ const routes = [
       requiresAuth: true,
       role: 'user',
     },
+  },
+   {
+    path: '/profile',
+    name: 'Profile',
+    component: Profile,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: Settings,
+    meta: { requiresAuth: true }
   },
   {
     path: '/admin/dashboard',
