@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   Armchair,
@@ -14,13 +15,13 @@ import {
   Wifi,
   Zap,
 } from 'lucide-vue-next'
+
 import api from '../services/api'
 import AdminSidebar from '../components/AdminSidebar.vue'
 import DashboardTopbar from '../components/DashboardTopbar.vue'
-import { useLocale } from '../composables/useLocale'
 
 const router = useRouter()
-const { t } = useLocale() // <-- tambahkan ini
+const { t } = useI18n()
 
 const stats = ref([])
 const incomingReports = ref([])
@@ -75,20 +76,30 @@ function getStatusClass(status) {
   return 'bg-slate-100 text-slate-700'
 }
 
+function getStatusLabel(status) {
+  const labels = {
+    Dikirim: t('reports.status_sent'),
+    Diproses: t('reports.status_processed'),
+    Selesai: t('reports.status_completed'),
+    Dibatalkan: t('reports.status_cancelled'),
+  }
+
+  return labels[status] || status
+}
+
+function getStatTitle(title) {
+  if (String(title).toUpperCase() === 'TOTAL') return t('common.total')
+
+  return getStatusLabel(title)
+}
+
 function normalizeStat(stat) {
   const key = getStatKey(stat)
-
-  // Gunakan terjemahan untuk subtitle jika key-nya dikenal
-  let subtitle = stat.subtitle ?? stat.description ?? ''
-  if (key === 'total') subtitle = t.value.total || subtitle
-  else if (key === 'dikirim') subtitle = t.value.waiting_review || subtitle
-  else if (key === 'diproses') subtitle = t.value.in_handling || subtitle
-  else if (key === 'selesai') subtitle = t.value.successfully_repaired || subtitle
 
   return {
     title: stat.title ?? stat.label ?? '',
     value: stat.value ?? stat.count ?? '',
-    subtitle: subtitle,
+    subtitle: stat.subtitle ?? stat.description ?? '',
     icon: statIconMap[key] || FileText,
     iconClass: stat.iconClass ?? statStyleMap[key] ?? statStyleMap.total,
   }
@@ -102,27 +113,27 @@ function buildStats(payload) {
   const statDefinitions = [
     {
       key: 'total',
-      title: t.value.total || 'TOTAL',
+      title: 'TOTAL',
       value: payload.totalReports,
-      subtitle: t.value.reports_incoming || 'Laporan Masuk',
+      subtitle: 'dashboard.reports_in',
     },
     {
       key: 'dikirim',
-      title: t.value.sent || 'Dikirim',
+      title: 'Dikirim',
       value: payload.submittedReports,
-      subtitle: t.value.waiting_review || 'Menunggu Review',
+      subtitle: 'dashboard.waiting_review',
     },
     {
       key: 'diproses',
-      title: t.value.processed || 'Diproses',
+      title: 'Diproses',
       value: payload.processedReports,
-      subtitle: t.value.in_handling || 'Dalam Penanganan',
+      subtitle: 'dashboard.in_progress',
     },
     {
       key: 'selesai',
-      title: t.value.completed || 'Selesai',
+      title: 'Selesai',
       value: payload.completedReports,
-      subtitle: t.value.successfully_repaired || 'Berhasil Diperbaiki',
+      subtitle: 'dashboard.repaired',
     },
   ]
 
@@ -133,6 +144,7 @@ function buildStats(payload) {
 
 function normalizeIncomingReport(report) {
   const reporterName = report.author ?? report.reporter ?? report.user?.name ?? ''
+
   return {
     id: report.id ?? report.code ?? report.reportId,
     title: report.title ?? '',
@@ -150,6 +162,7 @@ function normalizeIncomingReport(report) {
 
 function normalizeRecentReport(report) {
   const type = report.iconType ?? report.type ?? ''
+
   return {
     id: report.id ?? report.code ?? report.reportId,
     title: report.title ?? '',
@@ -174,14 +187,20 @@ function getInitials(name = '') {
 
 async function fetchDashboard() {
   isLoadingDashboard.value = true
+
   try {
     const response = await api.get('/admin/dashboard')
     const payload = unwrapResponse(response)
     const incomingItems = payload.incomingReports ?? payload.newReports ?? []
     const recentItems = payload.recentReports ?? payload.latestReports ?? []
+
     stats.value = buildStats(payload)
-    incomingReports.value = Array.isArray(incomingItems) ? incomingItems.map(normalizeIncomingReport) : []
-    recentReports.value = Array.isArray(recentItems) ? recentItems.map(normalizeRecentReport) : []
+    incomingReports.value = Array.isArray(incomingItems)
+      ? incomingItems.map(normalizeIncomingReport)
+      : []
+    recentReports.value = Array.isArray(recentItems)
+      ? recentItems.map(normalizeRecentReport)
+      : []
   } catch (error) {
     stats.value = []
     incomingReports.value = []
@@ -193,8 +212,11 @@ async function fetchDashboard() {
 
 async function exportData() {
   isExporting.value = true
+
   try {
-    const response = await api.get('/admin/reports/export', { responseType: 'blob' })
+    const response = await api.get('/admin/reports/export', {
+      responseType: 'blob',
+    })
     const url = URL.createObjectURL(response.data)
     const link = document.createElement('a')
     link.href = url
@@ -208,6 +230,7 @@ async function exportData() {
 
 async function generateReport() {
   isGeneratingReport.value = true
+
   try {
     await api.post('/admin/reports/generate')
     await fetchDashboard()
@@ -228,8 +251,7 @@ onMounted(fetchDashboard)
 </script>
 
 <template>
-<div class="min-h-screen bg-[#faf8ff] dark:bg-slate-950">
- 
+  <div class="min-h-screen bg-[#f5f4ff] text-slate-900">
     <div class="flex min-h-screen">
       <AdminSidebar />
 
@@ -241,10 +263,10 @@ onMounted(fetchDashboard)
             <div class="mb-8 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <h1 class="text-4xl font-extrabold tracking-tight text-slate-950 md:text-5xl">
-                  {{ t.overview_system }}
+                  {{ $t('dashboard.admin_title') }}
                 </h1>
                 <p class="mt-3 text-base text-slate-600 md:text-lg">
-                  {{ t.monitor_reports }}
+                  {{ $t('dashboard.admin_description') }}
                 </p>
               </div>
 
@@ -256,7 +278,7 @@ onMounted(fetchDashboard)
                   class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <Download :size="17" />
-                  {{ isExporting ? t.generating : t.export_data }}
+                  {{ isExporting ? $t('dashboard.exporting') : $t('dashboard.export_data') }}
                 </button>
 
                 <button
@@ -266,33 +288,50 @@ onMounted(fetchDashboard)
                   class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <Plus :size="18" />
-                  {{ isGeneratingReport ? t.generating : t.generate_report }}
+                  {{ isGeneratingReport ? $t('dashboard.generating') : $t('dashboard.generate_report') }}
                 </button>
               </div>
             </div>
 
             <div class="mb-9 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
               <template v-if="isLoadingDashboard && stats.length === 0">
-                <article v-for="index in 4" :key="`stat-loading-${index}`" class="rounded-xl border border-slate-300/80 bg-white p-6 shadow-sm">
+                <article
+                  v-for="index in 4"
+                  :key="`stat-loading-${index}`"
+                  class="rounded-xl border border-slate-300/80 bg-white p-6 shadow-sm"
+                >
                   <div class="mb-5 flex items-start justify-between">
                     <div class="size-10 rounded-lg bg-slate-100"></div>
                     <div class="h-3 w-14 rounded bg-slate-100"></div>
                   </div>
+
                   <div class="h-9 w-20 rounded bg-slate-100"></div>
                   <div class="mt-3 h-4 w-28 rounded bg-slate-100"></div>
                 </article>
               </template>
 
               <template v-else>
-                <article v-for="stat in stats" :key="stat.title" class="rounded-xl border border-slate-300/80 bg-white p-6 shadow-sm">
+                <article
+                  v-for="stat in stats"
+                  :key="stat.title"
+                  class="rounded-xl border border-slate-300/80 bg-white p-6 shadow-sm"
+                >
                   <div class="mb-5 flex items-start justify-between">
                     <div class="grid size-10 place-items-center rounded-lg" :class="stat.iconClass">
                       <component :is="stat.icon" :size="23" />
                     </div>
-                    <p class="text-xs font-extrabold text-slate-400">{{ stat.title }}</p>
+
+                    <p class="text-xs font-extrabold text-slate-400">
+                      {{ getStatTitle(stat.title) }}
+                    </p>
                   </div>
-                  <h3 class="text-4xl font-extrabold leading-none tracking-tight text-slate-950">{{ stat.value }}</h3>
-                  <p class="mt-2 text-sm text-slate-600">{{ stat.subtitle }}</p>
+
+                  <h3 class="text-4xl font-extrabold leading-none tracking-tight text-slate-950">
+                    {{ stat.value }}
+                  </h3>
+                  <p class="mt-2 text-sm text-slate-600">
+                  {{ stat.subtitle?.includes?.('.') ? $t(stat.subtitle) : stat.subtitle }}
+                  </p>
                 </article>
               </template>
             </div>
@@ -302,38 +341,97 @@ onMounted(fetchDashboard)
                 <div class="mb-5 flex items-center justify-between">
                   <h2 class="flex items-center gap-2 text-2xl font-extrabold text-slate-950">
                     <Zap :size="24" class="text-blue-700" />
-                    {{ t.new_reports }}
+                    {{ $t('dashboard.new_reports') }}
                   </h2>
-                  <button @click="goToReportManagement" class="text-sm font-extrabold text-blue-700 transition hover:text-blue-900">
-                    {{ t.view_all }}
+
+                  <button
+                    type="button"
+                    @click="goToReportManagement"
+                    class="text-sm font-extrabold text-blue-700 transition hover:text-blue-900"
+                  >
+                    {{ $t('common.view_all') }}
                   </button>
                 </div>
+
                 <div class="flex h-[520px] min-h-[520px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                  <div v-if="isLoadingDashboard" class="grid min-h-[520px] flex-1 place-items-center px-6 py-8 text-center">
-                    <p class="text-sm font-bold text-slate-500">{{ t.loading_reports }}</p>
+                  <div
+                    v-if="isLoadingDashboard"
+                    class="grid min-h-[520px] flex-1 place-items-center px-6 py-8 text-center"
+                  >
+                    <p class="text-sm font-bold text-slate-500">
+                      {{ $t('common.loading_reports') }}
+                    </p>
                   </div>
-                  <div v-else-if="displayedIncomingReports.length === 0" class="grid min-h-[520px] flex-1 place-items-center px-6 py-8 text-center">
-                    <p class="text-base font-bold text-slate-700">{{ t.no_new_reports }}</p>
+
+                  <div
+                    v-else-if="displayedIncomingReports.length === 0"
+                    class="grid min-h-[520px] flex-1 place-items-center px-6 py-8 text-center"
+                  >
+                    <p class="text-base font-bold text-slate-700">
+                      {{ $t('dashboard.no_new_reports') }}
+                    </p>
                   </div>
-                  <div v-else class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
-                    <article v-for="report in displayedIncomingReports" :key="report.id" class="grid gap-4 px-5 py-4 transition hover:bg-slate-50 md:grid-cols-[132px_1fr]">
+
+                  <div
+                    v-else
+                    class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto"
+                  >
+                    <article
+                      v-for="report in displayedIncomingReports"
+                      :key="report.id"
+                      class="grid gap-4 px-5 py-4 transition hover:bg-slate-50 md:grid-cols-[132px_1fr]"
+                    >
                       <div class="relative h-[112px] overflow-hidden rounded-lg bg-slate-100">
-                        <img v-if="report.imageUrl" :src="report.imageUrl" :alt="report.title" class="h-full w-full object-cover" />
-                        <div v-else class="h-full w-full" :class="report.imageClass"></div>
-                        <span v-if="report.priority" class="absolute left-3 top-3 rounded px-2.5 py-1 text-[10px] font-extrabold tracking-[0.14em]" :class="report.priorityClass">
+                        <img
+                          v-if="report.imageUrl"
+                          :src="report.imageUrl"
+                          :alt="report.title"
+                          class="h-full w-full object-cover"
+                        />
+
+                        <div
+                          v-else
+                          class="h-full w-full"
+                          :class="report.imageClass"
+                        ></div>
+
+                        <span
+                          v-if="report.priority"
+                          class="absolute left-3 top-3 rounded px-2.5 py-1 text-[10px] font-extrabold tracking-[0.14em]"
+                          :class="report.priorityClass"
+                        >
                           {{ report.priority }}
                         </span>
                       </div>
+
                       <div class="min-w-0">
-                        <p class="mb-1 truncate text-xs font-extrabold text-slate-500" :title="report.location">{{ report.location }}</p>
-                        <h3 class="truncate text-lg font-extrabold leading-tight text-slate-950" :title="report.title">{{ report.title }}</h3>
-                        <p class="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-600">{{ report.description }}</p>
+                        <p class="mb-1 truncate text-xs font-extrabold text-slate-500" :title="report.location">
+                          {{ report.location }}
+                        </p>
+
+                        <h3 class="truncate text-lg font-extrabold leading-tight text-slate-950" :title="report.title">
+                          {{ report.title }}
+                        </h3>
+
+                        <p class="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-600">
+                          {{ report.description }}
+                        </p>
+
                         <div class="mt-4 flex items-center justify-between gap-3">
                           <div class="flex min-w-0 items-center gap-3">
-                            <div class="grid size-8 shrink-0 place-items-center rounded-full bg-slate-800 text-[10px] font-extrabold text-white">{{ report.avatar }}</div>
-                            <p class="truncate text-sm font-medium text-slate-900" :title="report.author">{{ report.author }}</p>
+                            <div
+                              class="grid size-8 shrink-0 place-items-center rounded-full bg-slate-800 text-[10px] font-extrabold text-white"
+                            >
+                              {{ report.avatar }}
+                            </div>
+                            <p class="truncate text-sm font-medium text-slate-900" :title="report.author">
+                              {{ report.author }}
+                            </p>
                           </div>
-                          <p class="shrink-0 text-xs text-slate-400">{{ report.time }}</p>
+
+                          <p class="shrink-0 text-xs text-slate-400">
+                            {{ report.time }}
+                          </p>
                         </div>
                       </div>
                     </article>
@@ -342,34 +440,85 @@ onMounted(fetchDashboard)
               </section>
 
               <section>
-                <h2 class="mb-5 text-2xl font-extrabold text-slate-950">{{ t.latest_reports }}</h2>
+                <h2 class="mb-5 text-2xl font-extrabold text-slate-950">
+                  {{ $t('dashboard.recent_reports') }}
+                </h2>
+
                 <div class="flex h-[520px] min-h-[520px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                  <div v-if="isLoadingDashboard" class="grid min-h-[520px] flex-1 place-items-center px-5 py-8 text-center">
-                    <p class="text-sm font-bold text-slate-500">{{ t.loading_reports }}</p>
+                  <div
+                    v-if="isLoadingDashboard"
+                    class="grid min-h-[520px] flex-1 place-items-center px-5 py-8 text-center"
+                  >
+                    <p class="text-sm font-bold text-slate-500">
+                      {{ $t('common.loading_reports') }}
+                    </p>
                   </div>
-                  <div v-else-if="displayedRecentReports.length === 0" class="grid min-h-[520px] flex-1 place-items-center px-5 py-8 text-center">
-                    <p class="text-sm font-bold text-slate-700">{{ t.no_latest_reports }}</p>
+
+                  <div
+                    v-else-if="displayedRecentReports.length === 0"
+                    class="grid min-h-[520px] flex-1 place-items-center px-5 py-8 text-center"
+                  >
+                    <p class="text-sm font-bold text-slate-700">
+                      {{ $t('dashboard.no_recent_reports') }}
+                    </p>
                   </div>
-                  <div v-else class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
-                    <article v-for="report in displayedRecentReports" :key="report.id" class="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50">
-                      <div class="grid size-13 shrink-0 place-items-center rounded-lg" :class="report.iconClass">
+
+                  <div
+                    v-else
+                    class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto"
+                  >
+                    <article
+                      v-for="report in displayedRecentReports"
+                      :key="report.id"
+                      class="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50"
+                    >
+                      <div
+                        class="grid size-13 shrink-0 place-items-center rounded-lg"
+                        :class="report.iconClass"
+                      >
                         <component :is="report.icon" :size="22" />
                       </div>
+
                       <div class="min-w-0 flex-1">
                         <div class="flex items-start justify-between gap-3">
-                          <h3 class="truncate text-base font-extrabold text-slate-950" :title="report.title">{{ report.title }}</h3>
-                          <span class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold" :class="report.statusClass">{{ report.status }}</span>
+                          <h3 class="truncate text-base font-extrabold text-slate-950" :title="report.title">
+                            {{ report.title }}
+                          </h3>
+
+                          <span
+                            class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold"
+                            :class="report.statusClass"
+                          >
+                            {{ getStatusLabel(report.status) }}
+                          </span>
                         </div>
-                        <p class="mt-1 truncate text-sm text-slate-500" :title="report.location">{{ report.location }}</p>
-                        <p class="mt-2 text-xs text-slate-400">{{ report.time }}</p>
+
+                        <p class="mt-1 truncate text-sm text-slate-500" :title="report.location">
+                          {{ report.location }}
+                        </p>
+                        <p class="mt-2 text-xs text-slate-400">
+                          {{ report.time }}
+                        </p>
                       </div>
-                      <button @click="openReport(report)" class="grid size-8 place-items-center rounded-full text-slate-300 transition group-hover:bg-blue-50 group-hover:text-blue-700" :aria-label="`Buka ${report.title}`">
+
+                      <button
+                        type="button"
+                        @click="openReport(report)"
+                        class="grid size-8 place-items-center rounded-full text-slate-300 transition group-hover:bg-blue-50 group-hover:text-blue-700"
+                        :aria-label="$t('common.open_report', { title: report.title })"
+                      >
                         <ChevronRight :size="19" />
                       </button>
                     </article>
                   </div>
-                  <button v-if="displayedRecentReports.length > 0" @click="goToReportManagement" class="w-full border-t border-slate-100 px-5 py-4 text-sm font-extrabold text-blue-700 transition hover:bg-blue-50">
-                    {{ t.show_more }}
+
+                  <button
+                    v-if="displayedRecentReports.length > 0"
+                    type="button"
+                    @click="goToReportManagement"
+                    class="w-full border-t border-slate-100 px-5 py-4 text-sm font-extrabold text-blue-700 transition hover:bg-blue-50"
+                  >
+                    {{ $t('common.show_more') }}
                   </button>
                 </div>
               </section>

@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import {
   Bell,
   Building2,
@@ -7,29 +8,31 @@ import {
   LogOut,
 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { t } = useI18n()
 
-const menus = [
+const menus = computed(() => [
   {
-    label: 'Dashboard',
+    label: t('sidebar.dashboard'),
     icon: LayoutDashboard,
     path: '/admin/dashboard',
   },
   {
-    label: 'Management Laporan',
+    label: t('sidebar.report_management'),
     icon: ClipboardList,
     path: '/admin/management-laporan',
   },
   {
-    label: 'Notifikasi',
+    label: t('sidebar.notifications'),
     icon: Bell,
     path: '/admin/notifikasi',
   },
-]
+])
 
 function isActive(path) {
   return route.path === path
@@ -61,7 +64,7 @@ async function logout() {
           FilkomCare
         </h1>
         <p class="text-xs font-extrabold uppercase tracking-wide text-blue-700">
-          Admin Panel
+          {{ $t('common.admin_panel') }}
         </p>
       </div>
     </div>
@@ -90,7 +93,7 @@ async function logout() {
       class="mt-auto flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700"
     >
       <LogOut :size="21" class="shrink-0" />
-      <span>Logout</span>
+      <span>{{ $t('common.logout') }}</span>
     </button>
   </aside>
 </template>

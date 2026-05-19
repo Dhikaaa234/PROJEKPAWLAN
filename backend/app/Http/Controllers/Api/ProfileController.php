@@ -3,68 +3,83 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiFormatter;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
-    // Update profil (name, email, nim, no_telepon)
-    public function update(Request $request)
+    public function show(Request $request)
     {
-        $user = Auth::user();
-
-        $validated = $request->validate([
-            'name'       => 'sometimes|string|max:255',
-            'email'      => 'sometimes|email|unique:users,email,' . $user->id,
-            'nim'        => 'nullable|string|max:50|unique:users,nim,' . $user->id,
-            'no_telepon' => 'nullable|string|max:15',
-            'phone'      => 'nullable|string|max:15',
-        ]);
-
-        if (isset($validated['name'])) {
-            $validated['nama'] = $validated['name'];
-            unset($validated['name']);
-        }
-
-        if (isset($validated['phone'])) {
-            $validated['no_telepon'] = $validated['phone'];
-            unset($validated['phone']);
-        }
-
-        unset($validated['phone']);
-
-        $user->update($validated);
-
         return response()->json([
-            'status'  => 'success',
-            'message' => 'Profil berhasil diperbarui',
-            'data'    => ['user' => $user->fresh()],
+            'user' => ApiFormatter::user($request->user()),
         ]);
     }
 
-    // Ganti password
+    public function update(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:255'],
+            'nama' => ['nullable', 'string', 'max:255'],
+            'nim' => ['nullable', 'string', 'max:50', 'unique:users,nim,' . $user->id],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'no_telepon' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $updates = [];
+
+        if ($request->has('name') || $request->has('nama')) {
+            $name = $validated['name'] ?? $validated['nama'] ?? null;
+            $updates['name'] = $name;
+            $updates['nama'] = $name;
+        }
+
+        if ($request->has('nim')) {
+            $updates['nim'] = $validated['nim'] ?? null;
+        }
+
+        if ($request->has('phone') || $request->has('no_telepon')) {
+            $updates['no_telepon'] = $validated['phone'] ?? $validated['no_telepon'] ?? null;
+        }
+
+        if ($updates !== []) {
+            $user->update($updates);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Profil berhasil diperbarui',
+            'user' => ApiFormatter::user($user->fresh('role')),
+            'data' => [
+                'user' => ApiFormatter::user($user->fresh('role')),
+            ],
+        ]);
+    }
+
     public function changePassword(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user();
 
         $request->validate([
-            'old_password' => 'required|string',
-            'new_password' => 'required|string|min:6|confirmed',
+            'old_password' => ['required', 'string'],
+            'new_password' => ['required', 'string', 'min:6', 'confirmed'],
         ]);
 
         if (!Hash::check($request->old_password, $user->password)) {
             throw ValidationException::withMessages([
-                'old_password' => ['Password lama tidak sesuai.']
+                'old_password' => ['Password lama tidak sesuai.'],
             ]);
         }
 
-        $user->password = Hash::make($request->new_password);
-        $user->save();
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Password berhasil diubah',
         ]);
     }

@@ -8,6 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasColumn('users', 'nim')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('nim')->nullable()->after('email');
+            });
+        }
+
+        if (!Schema::hasIndex('users', 'users_nim_unique')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->unique('nim', 'users_nim_unique');
+            });
+        }
+
         if (!Schema::hasColumn('users', 'no_telepon')) {
             Schema::table('users', function (Blueprint $table) {
                 $table->string('no_telepon')->nullable()->after('nim');
@@ -17,9 +29,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (Schema::hasColumn('users', 'no_telepon')) {
+        if (Schema::hasIndex('users', 'users_nim_unique')) {
             Schema::table('users', function (Blueprint $table) {
-                $table->dropColumn('no_telepon');
+                $table->dropUnique('users_nim_unique');
             });
         }
     }

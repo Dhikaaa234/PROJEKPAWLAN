@@ -1,21 +1,39 @@
-import { ref, computed } from 'vue'
-import id from '../locales/id.js'
-import en from '../locales/en.js'
+import { computed } from 'vue'
+import i18n, {
+  loadUserLocale,
+  setLocaleForCurrentUser,
+} from '../i18n'
+import { messages } from '../i18n/messages'
 
-const translations = { id, en }
-const locale = ref(localStorage.getItem('locale') || 'id')
+function flattenMessages(source, prefix = '', target = {}) {
+  Object.entries(source).forEach(([key, value]) => {
+    const nextKey = prefix ? `${prefix}.${key}` : key
 
-export function useLocale() {
-  const t = computed(() => translations[locale.value] || translations.id)
-
-  const setLocale = (newLocale) => {
-    if (translations[newLocale]) {
-      locale.value = newLocale
-      localStorage.setItem('locale', newLocale)
-      window.location.reload() // refresh halaman setelah ganti bahasa
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      flattenMessages(value, nextKey, target)
+      return
     }
-  }
 
-  return { t, setLocale, locale }
+    target[nextKey] = value
+    target[key] = value
+  })
+
+  return target
 }
 
+export function useLocale() {
+  const locale = computed({
+    get: () => i18n.global.locale.value,
+    set: (value) => setLocaleForCurrentUser(value),
+  })
+
+  const t = computed(() => flattenMessages(messages[locale.value] || messages.id))
+
+  return {
+    t,
+    locale,
+    loadUserLocale,
+    setLocale: setLocaleForCurrentUser,
+    setLocaleForCurrentUser,
+  }
+}

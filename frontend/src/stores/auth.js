@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { loadUserLocale } from '../i18n'
 import { authAPI } from '../services/api'
 
 const AUTH_STORAGE_KEY = 'filkomcare_user'
@@ -82,6 +83,10 @@ function clearAuthStorage() {
 const storedToken = getStoredToken()
 const storedUser = normalizeUser(getStoredUser())
 
+if (storedToken && storedUser) {
+  loadUserLocale(storedUser)
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: storedUser,
@@ -110,6 +115,7 @@ export const useAuthStore = defineStore('auth', {
 
       if (token && normalizedUser) {
         saveAuthToStorage(token, normalizedUser, remember)
+        loadUserLocale(normalizedUser)
       }
     },
 
@@ -120,6 +126,7 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
 
       clearAuthStorage()
+      loadUserLocale(null)
     },
 
     // LOGIN
@@ -338,6 +345,7 @@ export const useAuthStore = defineStore('auth', {
 
         if (this.token && normalizedUser) {
           saveAuthToStorage(this.token, normalizedUser)
+          loadUserLocale(normalizedUser)
         }
 
         return normalizedUser
@@ -356,6 +364,8 @@ export const useAuthStore = defineStore('auth', {
       this.token = token
       this.user = user
       this.isAuthenticated = !!token && !!user
+
+      loadUserLocale(this.isAuthenticated ? user : null)
 
       return this.isAuthenticated
     },

@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Bell, Settings } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import api from '../services/api'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const unreadNotificationCount = ref(0)
 
@@ -25,9 +27,8 @@ const userInitials = computed(() => {
 })
 
 const userRoleLabel = computed(() => {
-  if (auth.user?.roleLabel) return auth.user.roleLabel
-  if (auth.user?.role === 'admin') return 'Super Admin'
-  return 'Mahasiswa'
+  if (auth.user?.role === 'admin') return t('topbar.admin')
+  return t('topbar.student')
 })
 
 const notificationPath = computed(() => {
@@ -83,7 +84,7 @@ onMounted(() => {
       <!-- Notifikasi -->
       <button
         type="button"
-        aria-label="Notifikasi"
+        :aria-label="$t('topbar.notifications')"
         @click="goToNotifications"
         class="relative grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
       >
@@ -99,7 +100,7 @@ onMounted(() => {
       <!-- Pengaturan -->
       <button
         type="button"
-        aria-label="Pengaturan"
+        :aria-label="$t('topbar.settings')"
         @click="goToSettings"
         class="grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
       >
