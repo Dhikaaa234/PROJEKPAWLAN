@@ -4,13 +4,11 @@ import { useAuthStore } from '../stores/auth'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import ForgotPassword from '../views/ForgotPassword.vue'
-
 import Dashboard from '../views/Dashboard.vue'
 import AllReports from '../views/AllReports.vue'
 import MyReports from '../views/MyReports.vue'
 import CreateReport from '../views/CreateReport.vue'
 import Notifications from '../views/Notifications.vue'
-
 import AdminDashboard from '../views/AdminDashboard.vue'
 import AdminReportManagement from '../views/AdminReportManagement.vue'
 import AdminNotifications from '../views/AdminNotifications.vue'
@@ -44,7 +42,6 @@ const routes = [
       guestOnly: true,
     },
   },
-
   {
     path: '/dashboard',
     name: 'Dashboard',
@@ -90,7 +87,6 @@ const routes = [
       role: 'user',
     },
   },
-
   {
     path: '/admin/dashboard',
     name: 'AdminDashboard',
@@ -128,12 +124,20 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
 
+  if (!auth.isAuthenticated) {
+    auth.restoreSession()
+  }
+
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return '/login'
   }
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return auth.isAdmin ? '/admin/dashboard' : '/dashboard'
+  }
+
+  if (to.meta.guestOnly) {
+    return true
   }
 
   if (to.meta.role && auth.role !== to.meta.role) {

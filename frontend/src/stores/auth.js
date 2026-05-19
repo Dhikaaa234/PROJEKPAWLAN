@@ -3,6 +3,25 @@ import { authAPI } from '../services/api'
 
 const AUTH_STORAGE_KEY = 'filkomcare_user'
 
+function safelyParseJSON(value) {
+  try {
+    return value ? JSON.parse(value) : null
+  } catch {
+    return null
+  }
+}
+
+function getStoredUser() {
+  const user = safelyParseJSON(localStorage.getItem('user'))
+  const fallbackUser = safelyParseJSON(localStorage.getItem(AUTH_STORAGE_KEY))
+
+  return user || fallbackUser || null
+}
+
+function getStoredToken() {
+  return localStorage.getItem('auth_token') || null
+}
+
 function getRoleFromEmail(email) {
   const normalizedEmail = String(email || '').toLowerCase().trim()
 
@@ -16,14 +35,61 @@ function getRoleFromEmail(email) {
   return 'user'
 }
 
+function normalizeUser(user, email = '') {
+  if (!user) return null
+
+  const normalizedUser = {
+    ...user,
+  }
+
+  if (!normalizedUser.role) {
+    normalizedUser.role = getRoleFromEmail(normalizedUser.email || email)
+  }
+
+  if (!normalizedUser.name && normalizedUser.nama) {
+    normalizedUser.name = normalizedUser.nama
+  }
+
+  if (!normalizedUser.nama && normalizedUser.name) {
+    normalizedUser.nama = normalizedUser.name
+  }
+
+  if (!normalizedUser.roleLabel) {
+    normalizedUser.roleLabel =
+      normalizedUser.role === 'admin' ? 'Super Admin' : 'Mahasiswa'
+  }
+
+  return normalizedUser
+}
+
+function saveAuthToStorage(token, user, remember = false) {
+  localStorage.setItem('auth_token', token)
+  localStorage.setItem('user', JSON.stringify(user))
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
+
+  if (remember) {
+    localStorage.setItem('remember_me', 'true')
+  }
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem('auth_token')
+  localStorage.removeItem('user')
+  localStorage.removeItem('remember_me')
+  localStorage.removeItem(AUTH_STORAGE_KEY)
+}
+
+const storedToken = getStoredToken()
+const storedUser = normalizeUser(getStoredUser())
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: JSON.parse(localStorage.getItem('user')) || null,
-    token: localStorage.getItem('auth_token') || null,
+    user: storedUser,
+    token: storedToken,
     loading: false,
     lastMessage: '',
     error: null,
-    isAuthenticated: !!localStorage.getItem('auth_token'),
+    isAuthenticated: !!storedToken && !!storedUser,
   }),
 
   getters: {
@@ -34,6 +100,28 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
+    setAuth({ token, user, remember = false }) {
+      const normalizedUser = normalizeUser(user)
+
+      this.token = token
+      this.user = normalizedUser
+      this.isAuthenticated = !!token && !!normalizedUser
+      this.error = null
+
+      if (token && normalizedUser) {
+        saveAuthToStorage(token, normalizedUser, remember)
+      }
+    },
+
+    clearAuth() {
+      this.token = null
+      this.user = null
+      this.isAuthenticated = false
+      this.error = null
+
+      clearAuthStorage()
+    },
+
     // LOGIN
     async login({ email, password, remember }) {
       this.loading = true
@@ -45,35 +133,33 @@ export const useAuthStore = defineStore('auth', {
 
         if (response.status === 200 || response.status === 201) {
           const { token, user } = response.data
+          const normalizedUser = normalizeUser(user, email)
 
-          // fallback role jika backend belum mengirim role
-          if (!user.role) {
-            user.role = getRoleFromEmail(email)
-          }
-
-          this.token = token
-          this.user = user
-          this.isAuthenticated = true
+          this.setAuth({
+            token,
+            user: normalizedUser,
+            remember,
+          })
 
           this.lastMessage =
-            user.role === 'admin'
+            normalizedUser.role === 'admin'
               ? 'Login admin berhasil'
-              : `Selamat datang, ${user.nama || user.name}!`
+              : `Selamat datang, ${normalizedUser.nama || normalizedUser.name}!`
 
-          localStorage.setItem('auth_token', token)
-          localStorage.setItem('user', JSON.stringify(user))
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
-
-          if (remember) {
-            localStorage.setItem('remember_me', 'true')
+          return {
+            success: true,
+            user: normalizedUser,
+            token,
           }
+        }
 
-          return { success: true, user, token }
+        this.error = 'Login gagal. Coba lagi'
+        return {
+          success: false,
+          error: this.error,
         }
       } catch (err) {
-        this.isAuthenticated = false
-        this.token = null
-        this.user = null
+        this.clearAuth()
 
         if (err.response?.status === 401) {
           this.error =
@@ -93,7 +179,11 @@ export const useAuthStore = defineStore('auth', {
         }
 
         this.lastMessage = ''
-        return { success: false, error: this.error }
+
+        return {
+          success: false,
+          error: this.error,
+        }
       } finally {
         this.loading = false
       }
@@ -113,31 +203,34 @@ export const useAuthStore = defineStore('auth', {
           password,
         })
 
-        if (response.status === 201) {
+        if (response.status === 201 || response.status === 200) {
           const { token, user } = response.data
+          const normalizedUser = normalizeUser(user, email)
 
-          if (!user.role) {
-            user.role = getRoleFromEmail(email)
-          }
-
-          this.token = token
-          this.user = user
-          this.isAuthenticated = true
+          this.setAuth({
+            token,
+            user: normalizedUser,
+            remember: false,
+          })
 
           this.lastMessage = `Akun berhasil dibuat! Selamat datang, ${
-            user.nama || user.name
+            normalizedUser.nama || normalizedUser.name
           }`
 
-          localStorage.setItem('auth_token', token)
-          localStorage.setItem('user', JSON.stringify(user))
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
+          return {
+            success: true,
+            user: normalizedUser,
+            token,
+          }
+        }
 
-          return { success: true, user, token }
+        this.error = 'Registrasi gagal. Coba lagi'
+        return {
+          success: false,
+          error: this.error,
         }
       } catch (err) {
-        this.isAuthenticated = false
-        this.token = null
-        this.user = null
+        this.clearAuth()
 
         if (err.response?.status === 422) {
           const errors = err.response.data?.errors || {}
@@ -164,7 +257,11 @@ export const useAuthStore = defineStore('auth', {
         }
 
         this.lastMessage = ''
-        return { success: false, error: this.error }
+
+        return {
+          success: false,
+          error: this.error,
+        }
       } finally {
         this.loading = false
       }
@@ -181,7 +278,9 @@ export const useAuthStore = defineStore('auth', {
 
         this.lastMessage = `Link reset password telah dikirim ke ${email}`
 
-        return { success: true }
+        return {
+          success: true,
+        }
       } catch (err) {
         if (err.code === 'ECONNREFUSED') {
           this.error =
@@ -197,7 +296,11 @@ export const useAuthStore = defineStore('auth', {
         }
 
         this.lastMessage = ''
-        return { success: false, error: this.error }
+
+        return {
+          success: false,
+          error: this.error,
+        }
       } finally {
         this.loading = false
       }
@@ -208,48 +311,53 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true
 
       try {
-        await authAPI.logout()
+        if (this.token) {
+          await authAPI.logout()
+        }
       } catch (err) {
         console.error('Logout error:', err)
+      } finally {
+        this.clearAuth()
+        this.lastMessage = 'Anda telah berhasil logout'
+        this.loading = false
       }
-
-      this.token = null
-      this.user = null
-      this.isAuthenticated = false
-      this.lastMessage = 'Anda telah berhasil logout'
-      this.error = null
-
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('remember_me')
-      localStorage.removeItem(AUTH_STORAGE_KEY)
-
-      this.loading = false
     },
 
     // GET CURRENT USER
     async fetchCurrentUser() {
       this.loading = true
+      this.error = null
 
       try {
         const response = await authAPI.me()
+        const userData = response.data?.user || response.data
+        const normalizedUser = normalizeUser(userData)
 
-        this.user = response.data
-        this.isAuthenticated = true
+        this.user = normalizedUser
+        this.isAuthenticated = !!this.token && !!normalizedUser
 
-        return response.data
+        if (this.token && normalizedUser) {
+          saveAuthToStorage(this.token, normalizedUser)
+        }
+
+        return normalizedUser
       } catch (err) {
-        this.token = null
-        this.user = null
-        this.isAuthenticated = false
-
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('user')
-
+        this.clearAuth()
         throw err
       } finally {
         this.loading = false
       }
+    },
+
+    restoreSession() {
+      const token = getStoredToken()
+      const user = normalizeUser(getStoredUser())
+
+      this.token = token
+      this.user = user
+      this.isAuthenticated = !!token && !!user
+
+      return this.isAuthenticated
     },
 
     clearError() {

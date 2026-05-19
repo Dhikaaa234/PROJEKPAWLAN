@@ -1,4 +1,6 @@
 <script setup>
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   Armchair,
   CheckCircle2,
@@ -13,111 +15,220 @@ import {
   Zap,
 } from 'lucide-vue-next'
 
+import api from '../services/api'
 import AdminSidebar from '../components/AdminSidebar.vue'
 import DashboardTopbar from '../components/DashboardTopbar.vue'
 
-const stats = [
-  {
-    title: 'TOTAL',
-    value: '1,284',
-    subtitle: 'Laporan Masuk',
-    icon: FileText,
-    iconClass: 'bg-blue-100 text-blue-700',
-  },
-  {
-    title: 'DIKIRIM',
-    value: '42',
-    subtitle: 'Menunggu Review',
-    icon: Send,
-    iconClass: 'bg-yellow-100 text-yellow-700',
-  },
-  {
-    title: 'DIPROSES',
-    value: '18',
-    subtitle: 'Dalam Penanganan',
-    icon: UserCog,
-    iconClass: 'bg-blue-100 text-blue-700',
-  },
-  {
-    title: 'SELESAI',
-    value: '1,224',
-    subtitle: 'Berhasil Diperbaiki',
-    icon: CheckCircle2,
-    iconClass: 'bg-green-100 text-green-700',
-  },
-]
+const router = useRouter()
 
-const incomingReports = [
-  {
-    id: 1,
-    title: 'AC Bocor & Tidak Dingin',
-    location: 'GEDUNG G - RUANG 2.4',
-    description:
-      'Laporan kerusakan unit pendingin ruangan yang mengganggu kegiatan belajar mengajar sejak tadi...',
-    priority: 'URGENT',
-    priorityClass: 'bg-red-600 text-white',
-    imageType: 'auditorium',
-    author: 'Budi Santoso',
-    avatar: 'BS',
-    time: '10 Menit yang lalu',
-  },
-  {
-    id: 2,
-    title: 'Kran Air Patah',
-    location: 'GEDUNG A - TOILET LT.1',
-    description:
-      'Keran air di wastafel toilet pria patah sehingga air terus mengalir dan mubazir.',
-    priority: 'MEDIUM',
-    priorityClass: 'bg-blue-700 text-white',
-    imageType: 'wall',
-    author: 'Siti Aminah',
-    avatar: 'SA',
-    time: '24 Menit yang lalu',
-  },
-]
+const stats = ref([])
+const incomingReports = ref([])
+const recentReports = ref([])
+const isLoadingDashboard = ref(false)
+const isExporting = ref(false)
+const isGeneratingReport = ref(false)
+const displayedIncomingReports = computed(() => incomingReports.value.slice(0, 5))
+const displayedRecentReports = computed(() => recentReports.value.slice(0, 5))
 
-const recentReports = [
-  {
-    id: 1,
-    title: 'Lampu Kelas Mati',
-    location: 'Gedung F - R.302',
-    time: 'Hari ini, 08:30',
-    status: 'Dikirim',
-    icon: Send,
-    iconClass: 'bg-slate-100 text-slate-400',
-    statusClass: 'bg-yellow-100 text-yellow-700',
-  },
-  {
-    id: 2,
-    title: 'Wi-Fi Tidak Terdeteksi',
-    location: 'Gedung D - Lobby',
-    time: 'Kemarin, 16:45',
-    status: 'Diproses',
-    icon: Wifi,
-    iconClass: 'bg-blue-50 text-blue-700',
-    statusClass: 'bg-blue-100 text-blue-700',
-  },
-  {
-    id: 3,
-    title: 'Kursi Lipat Patah',
-    location: 'Gedung B - R.101',
-    time: 'Kemarin, 14:20',
-    status: 'Selesai',
-    icon: Armchair,
-    iconClass: 'bg-green-50 text-green-700',
-    statusClass: 'bg-green-100 text-green-700',
-  },
-  {
-    id: 4,
-    title: 'Handle Pintu Lepas',
-    location: 'Gedung E - R.205',
-    time: '02 Nov, 09:15',
-    status: 'Dikirim',
-    icon: DoorOpen,
-    iconClass: 'bg-slate-100 text-slate-400',
-    statusClass: 'bg-yellow-100 text-yellow-700',
-  },
-]
+const statIconMap = {
+  total: FileText,
+  dikirim: Send,
+  diproses: UserCog,
+  selesai: CheckCircle2,
+}
+
+const statStyleMap = {
+  total: 'bg-blue-100 text-blue-700',
+  dikirim: 'bg-yellow-100 text-yellow-700',
+  diproses: 'bg-blue-100 text-blue-700',
+  selesai: 'bg-green-100 text-green-700',
+}
+
+const recentIconMap = {
+  chair: Armchair,
+  door: DoorOpen,
+  network: Wifi,
+  wifi: Wifi,
+  sent: Send,
+  Dikirim: Send,
+  Diproses: UserCog,
+  Selesai: CheckCircle2,
+  done: CheckCircle2,
+}
+
+function unwrapResponse(response) {
+  return response?.data?.data ?? response?.data ?? {}
+}
+
+function getStatKey(stat) {
+  return String(stat.key ?? stat.status ?? stat.title ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+}
+
+function getStatusClass(status) {
+  if (status === 'Dikirim') return 'bg-yellow-100 text-yellow-700'
+  if (status === 'Diproses') return 'bg-blue-100 text-blue-700'
+  if (status === 'Selesai') return 'bg-green-100 text-green-700'
+  if (status === 'Dibatalkan') return 'bg-red-100 text-red-700'
+  return 'bg-slate-100 text-slate-700'
+}
+
+function normalizeStat(stat) {
+  const key = getStatKey(stat)
+
+  return {
+    title: stat.title ?? stat.label ?? '',
+    value: stat.value ?? stat.count ?? '',
+    subtitle: stat.subtitle ?? stat.description ?? '',
+    icon: statIconMap[key] || FileText,
+    iconClass: stat.iconClass ?? statStyleMap[key] ?? statStyleMap.total,
+  }
+}
+
+function buildStats(payload) {
+  if (Array.isArray(payload.stats)) {
+    return payload.stats.map(normalizeStat)
+  }
+
+  const statDefinitions = [
+    {
+      key: 'total',
+      title: 'TOTAL',
+      value: payload.totalReports,
+      subtitle: 'Laporan Masuk',
+    },
+    {
+      key: 'dikirim',
+      title: 'Dikirim',
+      value: payload.submittedReports,
+      subtitle: 'Menunggu Review',
+    },
+    {
+      key: 'diproses',
+      title: 'Diproses',
+      value: payload.processedReports,
+      subtitle: 'Dalam Penanganan',
+    },
+    {
+      key: 'selesai',
+      title: 'Selesai',
+      value: payload.completedReports,
+      subtitle: 'Berhasil Diperbaiki',
+    },
+  ]
+
+  return statDefinitions
+    .filter((stat) => stat.value !== undefined && stat.value !== null)
+    .map(normalizeStat)
+}
+
+function normalizeIncomingReport(report) {
+  const reporterName = report.author ?? report.reporter ?? report.user?.name ?? ''
+
+  return {
+    id: report.id ?? report.code ?? report.reportId,
+    title: report.title ?? '',
+    location: report.location ?? '',
+    description: report.description ?? '',
+    priority: report.priority ?? '',
+    priorityClass: report.priorityClass ?? 'bg-blue-700 text-white',
+    imageUrl: report.imageUrl ?? report.image_url ?? null,
+    imageClass: report.imageClass ?? 'bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300',
+    author: reporterName,
+    avatar: report.avatar ?? report.reporterInitial ?? getInitials(reporterName),
+    time: report.time ?? report.date ?? report.createdAt ?? report.created_at ?? '',
+  }
+}
+
+function normalizeRecentReport(report) {
+  const type = report.iconType ?? report.type ?? ''
+
+  return {
+    id: report.id ?? report.code ?? report.reportId,
+    title: report.title ?? '',
+    location: report.location ?? '',
+    time: report.time ?? report.date ?? report.createdAt ?? report.created_at ?? '',
+    status: report.status ?? '',
+    icon: report.icon ?? recentIconMap[type] ?? recentIconMap[report.status] ?? Send,
+    iconClass: report.iconClass ?? 'bg-slate-100 text-blue-700',
+    statusClass: report.statusClass ?? getStatusClass(report.status),
+  }
+}
+
+function getInitials(name = '') {
+  return String(name)
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
+
+async function fetchDashboard() {
+  isLoadingDashboard.value = true
+
+  try {
+    const response = await api.get('/admin/dashboard')
+    const payload = unwrapResponse(response)
+    const incomingItems = payload.incomingReports ?? payload.newReports ?? []
+    const recentItems = payload.recentReports ?? payload.latestReports ?? []
+
+    stats.value = buildStats(payload)
+    incomingReports.value = Array.isArray(incomingItems)
+      ? incomingItems.map(normalizeIncomingReport)
+      : []
+    recentReports.value = Array.isArray(recentItems)
+      ? recentItems.map(normalizeRecentReport)
+      : []
+  } catch (error) {
+    stats.value = []
+    incomingReports.value = []
+    recentReports.value = []
+  } finally {
+    isLoadingDashboard.value = false
+  }
+}
+
+async function exportData() {
+  isExporting.value = true
+
+  try {
+    const response = await api.get('/admin/reports/export', {
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(response.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'filkomcare-reports'
+    link.click()
+    URL.revokeObjectURL(url)
+  } finally {
+    isExporting.value = false
+  }
+}
+
+async function generateReport() {
+  isGeneratingReport.value = true
+
+  try {
+    await api.post('/admin/reports/generate')
+    await fetchDashboard()
+  } finally {
+    isGeneratingReport.value = false
+  }
+}
+
+function goToReportManagement() {
+  router.push('/admin/management-laporan')
+}
+
+function openReport() {
+  goToReportManagement()
+}
+
+onMounted(fetchDashboard)
 </script>
 
 <template>
@@ -143,45 +254,67 @@ const recentReports = [
               <div class="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 transition hover:bg-slate-50"
+                  :disabled="isExporting"
+                  @click="exportData"
+                  class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <Download :size="17" />
-                  Export Data
+                  {{ isExporting ? 'Exporting...' : 'Export Data' }}
                 </button>
 
                 <button
                   type="button"
-                  class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800"
+                  :disabled="isGeneratingReport"
+                  @click="generateReport"
+                  class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <Plus :size="18" />
-                  Generate Report
+                  {{ isGeneratingReport ? 'Generating...' : 'Generate Report' }}
                 </button>
               </div>
             </div>
 
             <div class="mb-9 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-              <article
-                v-for="stat in stats"
-                :key="stat.title"
-                class="rounded-xl border border-slate-300/80 bg-white p-6 shadow-sm"
-              >
-                <div class="mb-5 flex items-start justify-between">
-                  <div class="grid size-10 place-items-center rounded-lg" :class="stat.iconClass">
-                    <component :is="stat.icon" :size="23" />
+              <template v-if="isLoadingDashboard && stats.length === 0">
+                <article
+                  v-for="index in 4"
+                  :key="`stat-loading-${index}`"
+                  class="rounded-xl border border-slate-300/80 bg-white p-6 shadow-sm"
+                >
+                  <div class="mb-5 flex items-start justify-between">
+                    <div class="size-10 rounded-lg bg-slate-100"></div>
+                    <div class="h-3 w-14 rounded bg-slate-100"></div>
                   </div>
 
-                  <p class="text-xs font-extrabold text-slate-400">
-                    {{ stat.title }}
-                  </p>
-                </div>
+                  <div class="h-9 w-20 rounded bg-slate-100"></div>
+                  <div class="mt-3 h-4 w-28 rounded bg-slate-100"></div>
+                </article>
+              </template>
 
-                <h3 class="text-4xl font-extrabold leading-none tracking-tight text-slate-950">
-                  {{ stat.value }}
-                </h3>
-                <p class="mt-2 text-sm text-slate-600">
-                  {{ stat.subtitle }}
-                </p>
-              </article>
+              <template v-else>
+                <article
+                  v-for="stat in stats"
+                  :key="stat.title"
+                  class="rounded-xl border border-slate-300/80 bg-white p-6 shadow-sm"
+                >
+                  <div class="mb-5 flex items-start justify-between">
+                    <div class="grid size-10 place-items-center rounded-lg" :class="stat.iconClass">
+                      <component :is="stat.icon" :size="23" />
+                    </div>
+
+                    <p class="text-xs font-extrabold text-slate-400">
+                      {{ stat.title }}
+                    </p>
+                  </div>
+
+                  <h3 class="text-4xl font-extrabold leading-none tracking-tight text-slate-950">
+                    {{ stat.value }}
+                  </h3>
+                  <p class="mt-2 text-sm text-slate-600">
+                    {{ stat.subtitle }}
+                  </p>
+                </article>
+              </template>
             </div>
 
             <div class="grid gap-7 xl:grid-cols-[1fr_430px]">
@@ -194,87 +327,96 @@ const recentReports = [
 
                   <button
                     type="button"
+                    @click="goToReportManagement"
                     class="text-sm font-extrabold text-blue-700 transition hover:text-blue-900"
                   >
                     Lihat Semua
                   </button>
                 </div>
 
-                <div class="grid gap-5 lg:grid-cols-2">
-                  <article
-                    v-for="report in incomingReports"
-                    :key="report.id"
-                    class="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm"
+                <div class="flex h-[520px] min-h-[520px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div
+                    v-if="isLoadingDashboard"
+                    class="grid min-h-[520px] flex-1 place-items-center px-6 py-8 text-center"
                   >
-                    <div
-                      class="relative h-[176px] overflow-hidden"
-                      :class="
-                        report.imageType === 'auditorium'
-                          ? 'bg-gradient-to-br from-amber-700 via-yellow-600 to-amber-300'
-                          : 'bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300'
-                      "
+                    <p class="text-sm font-bold text-slate-500">
+                      Memuat laporan...
+                    </p>
+                  </div>
+
+                  <div
+                    v-else-if="displayedIncomingReports.length === 0"
+                    class="grid min-h-[520px] flex-1 place-items-center px-6 py-8 text-center"
+                  >
+                    <p class="text-base font-bold text-slate-700">
+                      Belum ada laporan baru.
+                    </p>
+                  </div>
+
+                  <div
+                    v-else
+                    class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto"
+                  >
+                    <article
+                      v-for="report in displayedIncomingReports"
+                      :key="report.id"
+                      class="grid gap-4 px-5 py-4 transition hover:bg-slate-50 md:grid-cols-[132px_1fr]"
                     >
-                      <div
-                        v-if="report.imageType === 'auditorium'"
-                        class="absolute inset-x-0 bottom-0 h-20 bg-black/10"
-                      ></div>
+                      <div class="relative h-[112px] overflow-hidden rounded-lg bg-slate-100">
+                        <img
+                          v-if="report.imageUrl"
+                          :src="report.imageUrl"
+                          :alt="report.title"
+                          class="h-full w-full object-cover"
+                        />
 
-                      <div
-                        v-if="report.imageType === 'auditorium'"
-                        class="absolute inset-x-8 bottom-0 h-14 rounded-t-lg border-x border-t border-white/25 bg-white/20"
-                      ></div>
+                        <div
+                          v-else
+                          class="h-full w-full"
+                          :class="report.imageClass"
+                        ></div>
 
-                      <div
-                        v-if="report.imageType === 'auditorium'"
-                        class="absolute left-1/2 bottom-14 h-24 w-8 -translate-x-1/2 bg-white/20"
-                      ></div>
+                        <span
+                          v-if="report.priority"
+                          class="absolute left-3 top-3 rounded px-2.5 py-1 text-[10px] font-extrabold tracking-[0.14em]"
+                          :class="report.priorityClass"
+                        >
+                          {{ report.priority }}
+                        </span>
+                      </div>
 
-                      <template v-if="report.imageType === 'wall'">
-                        <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(202,138,4,0.45)_1px,transparent_1px),linear-gradient(rgba(202,138,4,0.45)_1px,transparent_1px)] bg-[size:84px_84px]"></div>
-                        <div class="absolute left-[48%] top-[48%] h-12 w-20 rotate-12 border-l-4 border-t-4 border-slate-800"></div>
-                      </template>
+                      <div class="min-w-0">
+                        <p class="mb-1 truncate text-xs font-extrabold text-slate-500" :title="report.location">
+                          {{ report.location }}
+                        </p>
 
-                      <span
-                        class="absolute left-4 top-4 rounded px-3 py-1 text-xs font-extrabold tracking-[0.16em]"
-                        :class="report.priorityClass"
-                      >
-                        {{ report.priority }}
-                      </span>
-                    </div>
+                        <h3 class="truncate text-lg font-extrabold leading-tight text-slate-950" :title="report.title">
+                          {{ report.title }}
+                        </h3>
 
-                    <div class="p-5">
-                      <p class="mb-2 text-xs font-extrabold text-slate-500">
-                        {{ report.location }}
-                      </p>
+                        <p class="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-600">
+                          {{ report.description }}
+                        </p>
 
-                      <h3 class="text-2xl font-extrabold leading-tight text-slate-950">
-                        {{ report.title }}
-                      </h3>
-
-                      <p class="mt-3 line-clamp-2 text-base leading-relaxed text-slate-600">
-                        {{ report.description }}
-                      </p>
-
-                      <div class="mt-5 border-t border-slate-100 pt-4">
-                        <div class="flex items-center justify-between gap-3">
-                          <div class="flex items-center gap-3">
+                        <div class="mt-4 flex items-center justify-between gap-3">
+                          <div class="flex min-w-0 items-center gap-3">
                             <div
-                              class="grid size-8 place-items-center rounded-full bg-slate-800 text-[10px] font-extrabold text-white"
+                              class="grid size-8 shrink-0 place-items-center rounded-full bg-slate-800 text-[10px] font-extrabold text-white"
                             >
                               {{ report.avatar }}
                             </div>
-                            <p class="text-sm font-medium text-slate-900">
+                            <p class="truncate text-sm font-medium text-slate-900" :title="report.author">
                               {{ report.author }}
                             </p>
                           </div>
 
-                          <p class="text-xs text-slate-400">
+                          <p class="shrink-0 text-xs text-slate-400">
                             {{ report.time }}
                           </p>
                         </div>
                       </div>
-                    </div>
-                  </article>
+                    </article>
+                  </div>
                 </div>
               </section>
 
@@ -283,52 +425,78 @@ const recentReports = [
                   Laporan Terbaru
                 </h2>
 
-                <div class="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
-                  <article
-                    v-for="report in recentReports"
-                    :key="report.id"
-                    class="group flex items-center gap-4 border-b border-slate-100 px-5 py-4 last:border-b-0 hover:bg-slate-50"
+                <div class="flex h-[520px] min-h-[520px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div
+                    v-if="isLoadingDashboard"
+                    class="grid min-h-[520px] flex-1 place-items-center px-5 py-8 text-center"
                   >
-                    <div
-                      class="grid size-13 shrink-0 place-items-center rounded-lg"
-                      :class="report.iconClass"
+                    <p class="text-sm font-bold text-slate-500">
+                      Memuat laporan...
+                    </p>
+                  </div>
+
+                  <div
+                    v-else-if="displayedRecentReports.length === 0"
+                    class="grid min-h-[520px] flex-1 place-items-center px-5 py-8 text-center"
+                  >
+                    <p class="text-sm font-bold text-slate-700">
+                      Belum ada laporan terbaru.
+                    </p>
+                  </div>
+
+                  <div
+                    v-else
+                    class="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto"
+                  >
+                    <article
+                      v-for="report in displayedRecentReports"
+                      :key="report.id"
+                      class="group flex items-center gap-4 px-5 py-4 hover:bg-slate-50"
                     >
-                      <component :is="report.icon" :size="22" />
-                    </div>
-
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-start justify-between gap-3">
-                        <h3 class="truncate text-base font-extrabold text-slate-950">
-                          {{ report.title }}
-                        </h3>
-
-                        <span
-                          class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold"
-                          :class="report.statusClass"
-                        >
-                          {{ report.status }}
-                        </span>
+                      <div
+                        class="grid size-13 shrink-0 place-items-center rounded-lg"
+                        :class="report.iconClass"
+                      >
+                        <component :is="report.icon" :size="22" />
                       </div>
 
-                      <p class="mt-1 text-sm text-slate-500">
-                        {{ report.location }}
-                      </p>
-                      <p class="mt-2 text-xs text-slate-400">
-                        {{ report.time }}
-                      </p>
-                    </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-start justify-between gap-3">
+                          <h3 class="truncate text-base font-extrabold text-slate-950" :title="report.title">
+                            {{ report.title }}
+                          </h3>
 
-                    <button
-                      type="button"
-                      class="grid size-8 place-items-center rounded-full text-slate-300 transition group-hover:bg-blue-50 group-hover:text-blue-700"
-                      :aria-label="`Buka ${report.title}`"
-                    >
-                      <ChevronRight :size="19" />
-                    </button>
-                  </article>
+                          <span
+                            class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold"
+                            :class="report.statusClass"
+                          >
+                            {{ report.status }}
+                          </span>
+                        </div>
+
+                        <p class="mt-1 truncate text-sm text-slate-500" :title="report.location">
+                          {{ report.location }}
+                        </p>
+                        <p class="mt-2 text-xs text-slate-400">
+                          {{ report.time }}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        @click="openReport(report)"
+                        class="grid size-8 place-items-center rounded-full text-slate-300 transition group-hover:bg-blue-50 group-hover:text-blue-700"
+                        :aria-label="`Buka ${report.title}`"
+                      >
+                        <ChevronRight :size="19" />
+                      </button>
+                    </article>
+                  </div>
 
                   <button
+                    v-if="displayedRecentReports.length > 0"
                     type="button"
+                    @click="goToReportManagement"
                     class="w-full border-t border-slate-100 px-5 py-4 text-sm font-extrabold text-blue-700 transition hover:bg-blue-50"
                   >
                     Tampilkan Selengkapnya

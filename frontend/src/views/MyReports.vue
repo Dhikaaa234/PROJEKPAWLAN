@@ -1,21 +1,24 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import {
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Filter,
+  ClipboardList,
   MapPin,
   MessageSquare,
   Plus,
+  RefreshCcw,
   Search,
   Send,
   SlidersHorizontal,
-  RefreshCcw,
+  X,
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
+import api from '../services/api'
 import DashboardSidebar from '../components/DashboardSidebar.vue'
 import DashboardTopbar from '../components/DashboardTopbar.vue'
 
@@ -23,94 +26,208 @@ const router = useRouter()
 
 const searchKeyword = ref('')
 const selectedStatus = ref('Semua Status')
+const selectedSort = ref('Terbaru')
+const selectedReport = ref(null)
+const reportToCancel = ref(null)
+const isDetailModalOpen = ref(false)
+const isCancelModalOpen = ref(false)
+const isLoadingReports = ref(false)
+const isCancellingReport = ref(false)
+const reports = ref([])
+const summaries = ref([])
 
-const summaries = [
+const pagination = reactive({
+  currentPage: 1,
+  perPage: 5,
+  total: 0,
+})
+
+const statusOptions = ref([
+  'Semua Status',
+  'Dikirim',
+  'Diproses',
+  'Selesai',
+  'Dibatalkan',
+])
+
+watch([isDetailModalOpen, isCancelModalOpen], ([isDetailOpen, isCancelOpen]) => {
+  document.body.style.overflow = isDetailOpen || isCancelOpen ? 'hidden' : ''
+})
+
+watch([searchKeyword, selectedStatus, selectedSort], () => {
+  pagination.currentPage = 1
+})
+
+onUnmounted(() => {
+  document.body.style.overflow = ''
+})
+
+const summaryConfig = [
   {
+    key: 'Dikirim',
     label: 'Dikirim',
-    value: '03',
     icon: Send,
     iconClass: 'bg-yellow-100 text-yellow-700',
   },
   {
+    key: 'Diproses',
     label: 'Diproses',
-    value: '01',
     icon: RefreshCcw,
     iconClass: 'bg-blue-100 text-blue-700',
   },
   {
+    key: 'Selesai',
     label: 'Selesai',
-    value: '12',
     icon: CheckCircle2,
     iconClass: 'bg-green-100 text-green-700',
   },
 ]
 
-const reports = ref([
-  {
-    id: 1,
-    reportId: '#REP-2023-089',
-    title: 'AC Rusak & Kebocoran di Gedung H 2.1',
-    description:
-      'Air Conditioner di ruang kelas H 2.1 tidak dingin dan mengeluarkan bunyi bising saat dinyalakan. Ada rembesan air di dinding bawah unit AC tersebut.',
-    status: 'Diproses',
-    statusClass: 'bg-blue-100 text-blue-700',
-    date: '24 Okt 2023, 10:15',
-    location: 'Gedung H, Lantai 2',
-    responses: '2 Tanggapan',
-    action: 'active',
-    imageType: 'ac',
-    titleClass: 'text-slate-950',
-  },
-  {
-    id: 2,
-    reportId: '#REP-2023-094',
-    title: 'Kursi Patah di Auditorium',
-    description:
-      'Ditemukan 3 kursi di barisan tengah (F12-F14) yang engselnya lepas dan tidak bisa diduduki dengan aman.',
-    status: 'Dikirim',
-    statusClass: 'bg-yellow-100 text-yellow-700',
-    date: 'Sekarang',
-    location: 'Gedung Auditorium Filkom',
-    responses: 'Belum ada tanggapan',
-    action: 'active',
-    imageType: 'chair',
-    titleClass: 'text-slate-950',
-  },
-  {
-    id: 3,
-    reportId: '#REP-2023-075',
-    title: 'Lampu Koridor Lantai 3 Mati',
-    description:
-      'Lampu di koridor depan Lab Basis Data mati total, membuat area tersebut sangat gelap di sore hari.',
-    status: 'Selesai',
-    statusClass: 'bg-green-100 text-green-700',
-    date: '15 Okt 2023',
-    location: 'Gedung G, Lantai 3',
-    responses: 'Tuntas Teratasi',
-    action: 'history',
-    imageType: 'lamp',
-    titleClass: 'text-slate-600 line-through decoration-2',
-  },
-])
+const displaySummaries = computed(() => {
+  if (summaries.value.length > 0) {
+    return summaries.value
+  }
+
+  return summaryConfig.map((summary) => ({
+    ...summary,
+    value: reports.value.filter((report) => report.status === summary.key).length,
+  }))
+})
 
 const filteredReports = computed(() => {
   const keyword = searchKeyword.value.toLowerCase().trim()
 
-  return reports.value.filter((report) => {
+  const result = reports.value.filter((report) => {
     const matchesKeyword =
       !keyword ||
-      report.title.toLowerCase().includes(keyword) ||
-      report.description.toLowerCase().includes(keyword) ||
-      report.reportId.toLowerCase().includes(keyword) ||
-      report.location.toLowerCase().includes(keyword) ||
-      report.status.toLowerCase().includes(keyword)
+      String(report.title).toLowerCase().includes(keyword) ||
+      String(report.description).toLowerCase().includes(keyword) ||
+      String(report.reportId).toLowerCase().includes(keyword) ||
+      String(report.location).toLowerCase().includes(keyword) ||
+      String(report.status).toLowerCase().includes(keyword) ||
+      String(report.category).toLowerCase().includes(keyword)
 
     const matchesStatus =
-      selectedStatus.value === 'Semua Status' || report.status === selectedStatus.value
+      selectedStatus.value === 'Semua Status' ||
+      report.status === selectedStatus.value
 
     return matchesKeyword && matchesStatus
   })
+
+  return [...result].sort((a, b) => {
+    if (selectedSort.value === 'Terlama') {
+      return Number(a.id ?? 0) - Number(b.id ?? 0)
+    }
+
+    return Number(b.id ?? 0) - Number(a.id ?? 0)
+  })
 })
+
+const paginatedReports = computed(() => {
+  const start = (pagination.currentPage - 1) * pagination.perPage
+  const end = start + pagination.perPage
+
+  return filteredReports.value.slice(start, end)
+})
+
+const filteredTotalReports = computed(() => filteredReports.value.length)
+const allReportsTotal = computed(() => reports.value.length)
+
+const pageCount = computed(() => {
+  if (filteredReports.value.length === 0) return 0
+
+  return Math.ceil(filteredReports.value.length / pagination.perPage)
+})
+
+const visiblePages = computed(() =>
+  Array.from({ length: pageCount.value }, (_, index) => index + 1)
+)
+
+function unwrapResponse(response) {
+  return response?.data?.data ?? response?.data ?? {}
+}
+
+function extractReports(payload) {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload.reports)) return payload.reports
+  if (Array.isArray(payload.items)) return payload.items
+  return []
+}
+
+function getStatusClass(status) {
+  if (status === 'Dikirim') return 'bg-yellow-100 text-yellow-700'
+  if (status === 'Diproses') return 'bg-blue-100 text-blue-700'
+  if (status === 'Selesai') return 'bg-green-100 text-green-700'
+  if (status === 'Dibatalkan') return 'bg-red-100 text-red-700'
+
+  return 'bg-slate-100 text-slate-700'
+}
+
+function normalizeReport(report) {
+  const status = report.status ?? report.statusName ?? report.status?.name ?? ''
+  const isHistory = ['Selesai', 'Dibatalkan'].includes(status)
+
+  return {
+    id: report.id ?? report.reportId ?? report.code,
+    reportId: report.reportId ?? report.code ?? report.report_code ?? report.id ?? '',
+    title: report.title ?? '',
+    description: report.description ?? '',
+    status,
+    statusClass: report.statusClass ?? getStatusClass(status),
+    date: report.date ?? report.createdAt ?? report.created_at ?? '',
+    location: report.location ?? '',
+    category: report.category ?? report.categoryName ?? report.category?.name ?? '',
+    responses: report.responses ?? report.responseSummary ?? '',
+    adminResponse: report.adminResponse ?? report.admin_response ?? '',
+    action: report.action ?? (isHistory ? 'history' : 'active'),
+    imagePath: report.imagePath ?? report.image_path ?? null,
+    imageUrl: report.imageUrl ?? report.image_url ?? null,
+    imageType: report.imageType ?? report.image_type ?? '',
+    titleClass:
+      report.titleClass ??
+      (isHistory ? 'text-slate-600 line-through decoration-2' : 'text-slate-950'),
+  }
+}
+
+function normalizeSummary(summary) {
+  const config = summaryConfig.find(
+    (item) =>
+      item.key === summary.key ||
+      item.key === summary.status ||
+      item.label === summary.label
+  )
+
+  return {
+    key: config?.key ?? summary.key ?? summary.status ?? summary.label ?? '',
+    label: summary.label ?? summary.status ?? config?.label ?? '',
+    value: summary.value ?? summary.count ?? 0,
+    icon: config?.icon ?? ClipboardList,
+    iconClass: config?.iconClass ?? 'bg-slate-100 text-slate-700',
+  }
+}
+
+async function fetchMyReports() {
+  isLoadingReports.value = true
+
+  try {
+    const response = await api.get('/reports/my')
+    const payload = unwrapResponse(response)
+
+    reports.value = extractReports(payload).map(normalizeReport)
+    summaries.value = Array.isArray(payload.summaries)
+      ? payload.summaries.map(normalizeSummary)
+      : []
+
+    pagination.total = reports.value.length
+    pagination.currentPage = 1
+  } catch (error) {
+    reports.value = []
+    summaries.value = []
+    pagination.total = 0
+  } finally {
+    isLoadingReports.value = false
+  }
+}
 
 function goToCreateReport() {
   router.push('/buat-laporan')
@@ -125,6 +242,68 @@ function getReportImageClass(type) {
 
   return classes[type] || 'from-slate-800 to-slate-400'
 }
+
+function setPage(page) {
+  if (page < 1 || page > pageCount.value) return
+
+  pagination.currentPage = page
+}
+
+function openDetailModal(report) {
+  selectedReport.value = report
+  isDetailModalOpen.value = true
+}
+
+function closeDetailModal() {
+  selectedReport.value = null
+  isDetailModalOpen.value = false
+}
+
+function openCancelModal(report) {
+  if (report.status !== 'Dikirim') return
+
+  reportToCancel.value = report
+  isCancelModalOpen.value = true
+}
+
+function closeCancelModal() {
+  reportToCancel.value = null
+  isCancelModalOpen.value = false
+}
+
+async function confirmCancelReport() {
+  if (!reportToCancel.value) return
+
+  isCancellingReport.value = true
+
+  try {
+    const response = await api.patch(`/reports/${reportToCancel.value.id}/cancel`)
+    const payload = unwrapResponse(response)
+    const updatedReport = normalizeReport(payload.report ?? payload)
+
+    reports.value = reports.value.map((report) =>
+      report.id === reportToCancel.value.id
+        ? {
+            ...report,
+            ...updatedReport,
+            status: updatedReport.status || 'Dibatalkan',
+            statusClass: updatedReport.status
+              ? updatedReport.statusClass
+              : getStatusClass('Dibatalkan'),
+            action: updatedReport.action || 'history',
+            titleClass:
+              updatedReport.titleClass || 'text-slate-600 line-through decoration-2',
+          }
+        : report
+    )
+
+    closeCancelModal()
+  } finally {
+    isCancellingReport.value = false
+  }
+}
+
+onMounted(fetchMyReports)
 </script>
 
 <template>
@@ -160,11 +339,14 @@ function getReportImageClass(type) {
             <div class="mb-8 grid gap-6 xl:grid-cols-[1fr_300px]">
               <div class="grid gap-6 md:grid-cols-3">
                 <article
-                  v-for="summary in summaries"
+                  v-for="summary in displaySummaries"
                   :key="summary.label"
                   class="flex items-center gap-4 rounded-xl border border-slate-300 bg-white p-6 shadow-sm"
                 >
-                  <div class="grid size-14 shrink-0 place-items-center rounded-full" :class="summary.iconClass">
+                  <div
+                    class="grid size-14 shrink-0 place-items-center rounded-full"
+                    :class="summary.iconClass"
+                  >
                     <component :is="summary.icon" :size="25" />
                   </div>
 
@@ -179,28 +361,40 @@ function getReportImageClass(type) {
                 </article>
               </div>
 
-              <aside class="rounded-xl border border-dashed border-slate-400 bg-white/35 p-5">
-                <div class="mb-3 flex items-center justify-between">
+              <aside class="rounded-xl border border-dashed border-slate-300 bg-white/60 p-5">
+                <div class="mb-4 flex items-center justify-between">
                   <h3 class="text-sm font-extrabold text-slate-700">
                     Filter Cepat
                   </h3>
 
-                  <SlidersHorizontal :size="17" class="text-slate-600" />
+                  <SlidersHorizontal :size="17" class="text-slate-500" />
                 </div>
 
-                <div class="flex flex-wrap gap-2">
+                <div class="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    class="h-8 rounded-full border border-slate-300 bg-white px-4 text-xs font-extrabold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                    @click="selectedSort = 'Terbaru'"
+                    class="h-9 rounded-lg px-4 text-xs font-extrabold shadow-sm transition"
+                    :class="
+                      selectedSort === 'Terbaru'
+                        ? 'bg-blue-700 text-white hover:bg-blue-800'
+                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    "
                   >
                     Terbaru
                   </button>
 
                   <button
                     type="button"
-                    class="h-8 rounded-full border border-slate-300 bg-white px-4 text-xs font-extrabold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                    @click="selectedSort = 'Terlama'"
+                    class="h-9 rounded-lg px-4 text-xs font-extrabold shadow-sm transition"
+                    :class="
+                      selectedSort === 'Terlama'
+                        ? 'bg-blue-700 text-white hover:bg-blue-800'
+                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    "
                   >
-                    Minggu Ini
+                    Terlama
                   </button>
                 </div>
               </aside>
@@ -226,46 +420,65 @@ function getReportImageClass(type) {
                   v-model="selectedStatus"
                   class="h-11 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 >
-                  <option>Semua Status</option>
-                  <option>Dikirim</option>
-                  <option>Diproses</option>
-                  <option>Selesai</option>
+                  <option
+                    v-for="status in statusOptions"
+                    :key="status"
+                  >
+                    {{ status }}
+                  </option>
                 </select>
               </div>
             </section>
 
             <section class="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
-              <div class="flex flex-col gap-4 border-b border-slate-300 px-5 py-4 md:flex-row md:items-center md:justify-between">
+              <div class="flex border-b border-slate-300 px-5 py-4">
                 <div class="flex items-center gap-3">
                   <h2 class="text-2xl font-extrabold text-slate-950">
                     Daftar Laporan
                   </h2>
 
                   <span class="rounded-md bg-blue-100 px-3 py-1 text-xs font-extrabold text-blue-700">
-                    16 TOTAL
+                    {{ allReportsTotal }} TOTAL
                   </span>
                 </div>
-
-                <button
-                  type="button"
-                  class="grid size-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
-                  aria-label="Filter"
-                >
-                  <Filter :size="19" />
-                </button>
               </div>
 
               <div class="divide-y divide-slate-200">
-                <article
-                  v-for="report in filteredReports"
-                  :key="report.id"
-                  class="p-5 md:p-6"
+                <div
+                  v-if="isLoadingReports"
+                  class="px-6 py-12 text-center"
                 >
-                  <div class="grid gap-5 xl:grid-cols-[190px_1fr_210px]">
+                  <p class="text-base font-bold text-slate-700">
+                    Memuat laporan...
+                  </p>
+                  <p class="mt-1 text-sm text-slate-500">
+                    Mohon tunggu sebentar.
+                  </p>
+                </div>
+
+                <article
+                  v-for="report in paginatedReports"
+                  v-else
+                  :key="report.id"
+                  class="p-5"
+                >
+                  <div class="grid gap-5 xl:grid-cols-[160px_1fr_190px]">
                     <div
-                      class="relative h-[150px] overflow-hidden rounded-lg bg-gradient-to-br md:h-[128px]"
-                      :class="getReportImageClass(report.imageType)"
-                    ></div>
+                      class="relative h-[130px] overflow-hidden rounded-lg bg-slate-100"
+                    >
+                      <img
+                        v-if="report.imageUrl"
+                        :src="report.imageUrl"
+                        :alt="report.title"
+                        class="h-full w-full object-cover"
+                      />
+
+                      <div
+                        v-else
+                        class="h-full w-full bg-gradient-to-br"
+                        :class="getReportImageClass(report.imageType)"
+                      ></div>
+                    </div>
 
                     <div class="min-w-0">
                       <div class="mb-3 flex flex-wrap items-center gap-3">
@@ -277,23 +490,32 @@ function getReportImageClass(type) {
                         </span>
                       </div>
 
-                      <h3 class="text-2xl font-extrabold leading-tight" :class="report.titleClass">
+                      <h3
+                        class="truncate text-xl font-extrabold leading-tight"
+                        :class="report.titleClass"
+                        :title="report.title"
+                      >
                         {{ report.title }}
                       </h3>
 
-                      <p class="mt-3 text-base leading-relaxed text-slate-600">
+                      <p
+                        class="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-600"
+                        :title="report.description"
+                      >
                         {{ report.description }}
                       </p>
 
-                      <div class="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-semibold text-slate-500">
+                      <div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-500">
                         <span class="inline-flex items-center gap-2">
                           <CalendarDays :size="16" />
                           {{ report.date }}
                         </span>
 
-                        <span class="inline-flex items-center gap-2">
-                          <MapPin :size="16" />
-                          {{ report.location }}
+                        <span class="inline-flex min-w-0 items-center gap-2">
+                          <MapPin :size="16" class="shrink-0" />
+                          <span class="max-w-[210px] truncate">
+                            {{ report.location }}
+                          </span>
                         </span>
 
                         <span
@@ -307,8 +529,8 @@ function getReportImageClass(type) {
                       </div>
                     </div>
 
-                    <div class="flex flex-col items-start justify-between gap-5 xl:items-end">
-                      <p class="text-base font-medium text-slate-700">
+                    <div class="flex flex-col items-start justify-between gap-4 xl:items-end">
+                      <p class="text-sm font-medium text-slate-700">
                         ID: {{ report.reportId }}
                       </p>
 
@@ -316,14 +538,16 @@ function getReportImageClass(type) {
                         <button
                           v-if="report.action === 'active'"
                           type="button"
+                          @click="openDetailModal(report)"
                           class="h-10 rounded-lg border border-slate-300 bg-white px-7 text-sm font-extrabold text-slate-800 transition hover:bg-slate-50"
                         >
                           Detail
                         </button>
 
                         <button
-                          v-if="report.action === 'active'"
+                          v-if="report.status === 'Dikirim'"
                           type="button"
+                          @click="openCancelModal(report)"
                           class="h-10 px-3 text-sm font-extrabold text-red-600 transition hover:text-red-700"
                         >
                           Batalkan
@@ -332,6 +556,7 @@ function getReportImageClass(type) {
                         <button
                           v-if="report.action === 'history'"
                           type="button"
+                          @click="openDetailModal(report)"
                           class="h-10 rounded-lg border border-slate-300 bg-white px-6 text-sm font-extrabold text-slate-800 transition hover:bg-slate-50"
                         >
                           Lihat Riwayat
@@ -342,7 +567,7 @@ function getReportImageClass(type) {
                 </article>
 
                 <div
-                  v-if="filteredReports.length === 0"
+                  v-if="filteredReports.length === 0 && !isLoadingReports"
                   class="px-6 py-12 text-center"
                 >
                   <p class="text-base font-bold text-slate-700">
@@ -356,34 +581,44 @@ function getReportImageClass(type) {
 
               <div class="flex flex-col gap-5 border-t border-slate-200 bg-white px-5 py-4 md:flex-row md:items-center md:justify-between">
                 <p class="text-sm font-medium text-slate-600">
-                  Menampilkan {{ filteredReports.length }} dari 16 laporan
+                  Menampilkan {{ paginatedReports.length }} dari {{ filteredTotalReports }} laporan
                 </p>
 
-                <div class="flex items-center gap-2">
+                <div
+                  v-if="pageCount > 1"
+                  class="flex items-center gap-2"
+                >
                   <button
                     type="button"
+                    :disabled="pagination.currentPage === 1"
+                    @click="setPage(pagination.currentPage - 1)"
                     class="grid size-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-400 transition hover:bg-slate-50"
+                    :class="pagination.currentPage === 1 ? 'cursor-not-allowed opacity-50' : ''"
                   >
                     <ChevronLeft :size="18" />
                   </button>
 
                   <button
+                    v-for="page in visiblePages"
+                    :key="page"
                     type="button"
-                    class="grid size-10 place-items-center rounded-lg bg-blue-700 text-sm font-extrabold text-white"
+                    @click="setPage(page)"
+                    class="grid size-10 place-items-center rounded-lg text-sm font-extrabold transition"
+                    :class="
+                      pagination.currentPage === page
+                        ? 'bg-blue-700 text-white'
+                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    "
                   >
-                    1
+                    {{ page }}
                   </button>
 
                   <button
                     type="button"
-                    class="grid size-10 place-items-center rounded-lg border border-slate-300 bg-white text-sm font-extrabold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    2
-                  </button>
-
-                  <button
-                    type="button"
+                    :disabled="pagination.currentPage === pageCount"
+                    @click="setPage(pagination.currentPage + 1)"
                     class="grid size-10 place-items-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+                    :class="pagination.currentPage === pageCount ? 'cursor-not-allowed opacity-50' : ''"
                   >
                     <ChevronRight :size="18" />
                   </button>
@@ -392,6 +627,183 @@ function getReportImageClass(type) {
             </section>
           </section>
         </main>
+      </div>
+    </div>
+
+    <div
+      v-if="isDetailModalOpen && selectedReport"
+      class="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 px-4 py-10 backdrop-blur-sm"
+      @click.self="closeDetailModal"
+    >
+      <div class="mx-auto flex min-h-full w-full max-w-[680px] items-start justify-center">
+        <div class="w-full overflow-hidden rounded-2xl bg-white shadow-[0_20px_70px_rgba(15,23,42,0.28)]">
+          <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+            <div>
+              <p class="text-sm font-extrabold text-blue-700">
+                {{ selectedReport.reportId }}
+              </p>
+              <h2 class="mt-1 text-2xl font-extrabold leading-tight text-slate-950">
+                Detail Laporan
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              class="grid size-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Tutup detail laporan"
+              @click="closeDetailModal"
+            >
+              <X :size="20" />
+            </button>
+          </div>
+
+          <div class="px-6 py-6">
+            <div
+              class="mb-5 h-[190px] overflow-hidden rounded-xl bg-slate-100"
+            >
+              <img
+                v-if="selectedReport.imageUrl"
+                :src="selectedReport.imageUrl"
+                :alt="selectedReport.title"
+                class="h-full w-full object-cover"
+              />
+
+              <div
+                v-else
+                class="h-full w-full bg-gradient-to-br"
+                :class="getReportImageClass(selectedReport.imageType)"
+              ></div>
+            </div>
+
+            <div class="mb-4">
+              <span
+                class="inline-flex rounded-full px-3 py-1 text-xs font-extrabold"
+                :class="selectedReport.statusClass"
+              >
+                {{ selectedReport.status }}
+              </span>
+            </div>
+
+            <h3 class="text-2xl font-extrabold leading-tight text-slate-950">
+              {{ selectedReport.title }}
+            </h3>
+
+            <p class="mt-4 text-base leading-relaxed text-slate-600">
+              {{ selectedReport.description }}
+            </p>
+
+            <div class="mt-6 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                  Kategori
+                </p>
+                <p class="mt-1 text-sm font-bold text-slate-700">
+                  {{ selectedReport.category }}
+                </p>
+              </div>
+
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                  Lokasi
+                </p>
+                <p class="mt-1 text-sm font-bold text-slate-700">
+                  {{ selectedReport.location }}
+                </p>
+              </div>
+
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                  Waktu
+                </p>
+                <p class="mt-1 text-sm font-bold text-slate-700">
+                  {{ selectedReport.date }}
+                </p>
+              </div>
+
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                  Tanggapan
+                </p>
+                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
+                  {{ selectedReport.adminResponse || 'Belum ada tanggapan dari admin.' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-6 py-4">
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-lg bg-blue-700 px-5 text-sm font-extrabold text-white transition hover:bg-blue-800"
+              @click="closeDetailModal"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="isCancelModalOpen && reportToCancel"
+      class="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 px-4 py-10 backdrop-blur-sm"
+      @click.self="closeCancelModal"
+    >
+      <div class="mx-auto flex min-h-full w-full max-w-[520px] items-start justify-center">
+        <div class="w-full overflow-hidden rounded-2xl bg-white shadow-[0_20px_70px_rgba(15,23,42,0.28)]">
+          <div class="flex items-start gap-4 border-b border-slate-200 px-6 py-5">
+            <div class="grid size-11 shrink-0 place-items-center rounded-full bg-red-100 text-red-700">
+              <AlertTriangle :size="22" />
+            </div>
+
+            <div class="min-w-0">
+              <h2 class="text-2xl font-extrabold leading-tight text-slate-950">
+                Batalkan Laporan?
+              </h2>
+              <p class="mt-1 text-sm font-medium text-slate-500">
+                Konfirmasi pembatalan laporan fasilitas.
+              </p>
+            </div>
+          </div>
+
+          <div class="px-6 py-6">
+            <p class="text-base leading-relaxed text-slate-600">
+              Apakah Anda yakin ingin membatalkan laporan
+              <span class="font-extrabold text-slate-950">
+                {{ reportToCancel.title }}
+              </span>
+              dengan ID
+              <span class="font-extrabold text-slate-950">
+                {{ reportToCancel.reportId }}
+              </span>
+              ?
+            </p>
+
+            <p class="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              Setelah dibatalkan, laporan akan dipindahkan ke riwayat dan tidak dapat diproses sebagai laporan aktif.
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-5 text-sm font-extrabold text-slate-700 transition hover:bg-slate-100"
+              @click="closeCancelModal"
+            >
+              Tidak
+            </button>
+
+            <button
+              type="button"
+              :disabled="isCancellingReport"
+              class="inline-flex h-11 items-center justify-center rounded-lg bg-red-600 px-5 text-sm font-extrabold text-white transition hover:bg-red-700"
+              :class="isCancellingReport ? 'cursor-not-allowed opacity-70' : ''"
+              @click="confirmCancelReport"
+            >
+              {{ isCancellingReport ? 'Membatalkan...' : 'Ya, Batalkan' }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

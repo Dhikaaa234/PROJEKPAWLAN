@@ -20,6 +20,15 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    if (config.data instanceof FormData) {
+      if (typeof config.headers.delete === 'function') {
+        config.headers.delete('Content-Type')
+      } else {
+        delete config.headers['Content-Type']
+      }
+    }
+
     return config
   },
   (error) => Promise.reject(error)
@@ -53,6 +62,10 @@ export const authAPI = {
   logout: () => api.post('/logout'),
   me: () => api.get('/me'),
   sendResetLink: (email) => api.post('/forgot-password', { email })
+}
+
+export const reportAPI = {
+  createReport: (payload) => api.post('/reports', payload),
 }
 
 export default api

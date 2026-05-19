@@ -1,20 +1,20 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   CalendarClock,
-  Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  FileImage,
   FileText,
   Search,
   Settings2,
-  SlidersHorizontal,
   X,
 } from 'lucide-vue-next'
 
+import api from '../services/api'
 import AdminSidebar from '../components/AdminSidebar.vue'
 import DashboardTopbar from '../components/DashboardTopbar.vue'
 
@@ -22,81 +22,68 @@ const searchKeyword = ref('')
 const selectedStatus = ref('Semua Status')
 const selectedCategory = ref('Semua Kategori')
 
+const statusOptions = ref([
+  'Semua Status',
+  'Dikirim',
+  'Diproses',
+  'Selesai',
+])
+
+const categoryOptions = ref(['Semua Kategori'])
+
 const isStatusModalOpen = ref(false)
+const isLoadingReports = ref(false)
+const isSavingStatus = ref(false)
+
 const selectedReport = ref(null)
+const selectedImage = ref(null)
 const selectedUpdateStatus = ref('')
 const adminNote = ref('')
+const isImagePreviewOpen = ref(false)
 
-const stats = [
-  {
-    title: 'TOTAL LAPORAN',
-    value: '1.284',
-    description: '↗ +12% dari bulan lalu',
+const stats = ref([])
+const reports = ref([])
+
+const pagination = reactive({
+  currentPage: 1,
+  perPage: 5,
+  total: 0,
+})
+
+const statIconMap = {
+  total: FileText,
+  dikirim: CalendarClock,
+  pending: CalendarClock,
+  diproses: Settings2,
+  selesai: CheckCircle2,
+}
+
+const statStyleMap = {
+  total: {
     descriptionClass: 'text-green-600',
-    icon: FileText,
     iconClass: 'bg-blue-50 text-blue-700',
   },
-  {
-    title: 'PENDING',
-    value: '42',
-    description: 'Laporan perlu ditinjau',
+  dikirim: {
     descriptionClass: 'text-slate-400',
-    icon: CalendarClock,
     iconClass: 'bg-yellow-50 text-yellow-600',
   },
-  {
-    title: 'DIPROSES',
-    value: '18',
-    description: 'Sedang dalam perbaikan',
+  pending: {
     descriptionClass: 'text-slate-400',
-    icon: Settings2,
+    iconClass: 'bg-yellow-50 text-yellow-600',
+  },
+  diproses: {
+    descriptionClass: 'text-slate-400',
     iconClass: 'bg-blue-50 text-blue-700',
   },
-  {
-    title: 'SELESAI',
-    value: '1.224',
-    description: '95.3% Resolution rate',
+  selesai: {
     descriptionClass: 'text-green-600',
-    icon: CheckCircle2,
     iconClass: 'bg-green-50 text-green-700',
   },
-]
+}
 
-const reports = ref([
-  {
-    id: 1,
-    title: 'AC Ruang H.21 Bocor',
-    reporter: 'Budi Santoso',
-    reporterInitial: 'BS',
-    category: 'Kelistrikan',
-    location: 'Gedung H, Lantai 2',
-    status: 'Diproses',
-    statusClass: 'bg-blue-100 text-blue-700',
-    date: '24 Okt 2023',
-  },
-  {
-    id: 2,
-    title: 'LCD Proyektor Redup',
-    reporter: 'Dr. Siti Aminah',
-    reporterInitial: 'SA',
-    category: 'Infrastruktur IT',
-    location: 'Gedung B, Ruang 3.1',
-    status: 'Dikirim',
-    statusClass: 'bg-yellow-100 text-yellow-700',
-    date: '25 Okt 2023',
-  },
-  {
-    id: 3,
-    title: 'Keramik Tangga Lepas',
-    reporter: 'Rahmat Hidayat',
-    reporterInitial: 'RH',
-    category: 'Fisik Bangunan',
-    location: 'Gedung F, Tangga Timur',
-    status: 'Selesai',
-    statusClass: 'bg-green-100 text-green-700',
-    date: '23 Okt 2023',
-  },
-])
+watch([searchKeyword, selectedStatus, selectedCategory], () => {
+  pagination.currentPage = 1
+})
 
 const filteredReports = computed(() => {
   const keyword = searchKeyword.value.toLowerCase().trim()
@@ -104,41 +91,170 @@ const filteredReports = computed(() => {
   return reports.value.filter((report) => {
     const matchesKeyword =
       !keyword ||
-      report.title.toLowerCase().includes(keyword) ||
-      report.reporter.toLowerCase().includes(keyword) ||
-      report.category.toLowerCase().includes(keyword) ||
-      report.location.toLowerCase().includes(keyword) ||
-      report.status.toLowerCase().includes(keyword)
+      String(report.title).toLowerCase().includes(keyword) ||
+      String(report.reporter).toLowerCase().includes(keyword) ||
+      String(report.category).toLowerCase().includes(keyword) ||
+      String(report.location).toLowerCase().includes(keyword) ||
+      String(report.status).toLowerCase().includes(keyword)
 
     const matchesStatus =
-      selectedStatus.value === 'Semua Status' || report.status === selectedStatus.value
+      selectedStatus.value === 'Semua Status' ||
+      report.status === selectedStatus.value
 
     const matchesCategory =
-      selectedCategory.value === 'Semua Kategori' || report.category === selectedCategory.value
+      selectedCategory.value === 'Semua Kategori' ||
+      report.category === selectedCategory.value
 
     return matchesKeyword && matchesStatus && matchesCategory
   })
 })
 
-function applyFilter() {
-  console.log('Filter diterapkan:', {
-    keyword: searchKeyword.value,
-    status: selectedStatus.value,
-    category: selectedCategory.value,
-  })
+const paginatedReports = computed(() => {
+  const start = (pagination.currentPage - 1) * pagination.perPage
+  const end = start + pagination.perPage
+
+  return filteredReports.value.slice(start, end)
+})
+
+const totalReports = computed(() => filteredReports.value.length)
+
+const pageCount = computed(() => {
+  if (filteredReports.value.length === 0) return 0
+
+  return Math.ceil(filteredReports.value.length / pagination.perPage)
+})
+
+const visiblePages = computed(() =>
+  Array.from({ length: pageCount.value }, (_, index) => index + 1)
+)
+
+function unwrapResponse(response) {
+  return response?.data?.data ?? response?.data ?? {}
+}
+
+function extractReports(payload) {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload.reports)) return payload.reports
+  if (Array.isArray(payload.items)) return payload.items
+  return []
+}
+
+function getStatKey(stat) {
+  return String(stat.key ?? stat.status ?? stat.title ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+}
+
+function normalizeStat(stat) {
+  const key = getStatKey(stat)
+  const style = statStyleMap[key] || statStyleMap.total
+
+  return {
+    title: stat.title ?? stat.label ?? '',
+    value: stat.value ?? stat.count ?? '',
+    description: stat.description ?? stat.subtitle ?? '',
+    descriptionClass: stat.descriptionClass ?? style.descriptionClass,
+    icon: statIconMap[key] || FileText,
+    iconClass: stat.iconClass ?? style.iconClass,
+  }
 }
 
 function getStatusClass(status) {
   if (status === 'Dikirim') return 'bg-yellow-100 text-yellow-700'
   if (status === 'Diproses') return 'bg-blue-100 text-blue-700'
   if (status === 'Selesai') return 'bg-green-100 text-green-700'
+
   return 'bg-slate-100 text-slate-700'
+}
+
+function getReporterInitial(name) {
+  return String(name || '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
+
+function normalizeReport(report) {
+  const reporter =
+    report.reporter ??
+    report.reporterName ??
+    report.user?.name ??
+    report.user?.nama ??
+    ''
+
+  const status =
+    report.status ??
+    report.statusName ??
+    report.status?.name ??
+    ''
+
+  return {
+    id: report.id ?? report.code ?? report.reportId,
+    code: report.code ?? report.reportId ?? report.report_code ?? report.id ?? '',
+    title: report.title ?? '',
+    description: report.description ?? '',
+    reporter,
+    reporterInitial: report.reporterInitial ?? getReporterInitial(reporter),
+    category: report.category ?? report.categoryName ?? report.category?.name ?? '',
+    location: report.location ?? '',
+    status,
+    statusClass: report.statusClass ?? getStatusClass(status),
+    date: report.date ?? report.createdAt ?? report.created_at ?? '',
+    imagePath: report.imagePath ?? report.image_path ?? null,
+    imageUrl: report.imageUrl ?? report.image_url ?? null,
+    adminResponse: report.adminResponse ?? report.admin_response ?? '',
+  }
+}
+
+function syncCategoryOptions(payload, normalizedReports) {
+  const categories = Array.isArray(payload.categories)
+    ? payload.categories
+    : [...new Set(normalizedReports.map((report) => report.category).filter(Boolean))]
+
+  categoryOptions.value = ['Semua Kategori', ...categories]
+}
+
+async function fetchStats() {
+  try {
+    const response = await api.get('/admin/reports/stats')
+    const payload = unwrapResponse(response)
+
+    stats.value = Array.isArray(payload.stats)
+      ? payload.stats.map(normalizeStat)
+      : []
+  } catch (error) {
+    stats.value = []
+  }
+}
+
+async function fetchReports() {
+  isLoadingReports.value = true
+
+  try {
+    const response = await api.get('/admin/reports')
+    const payload = unwrapResponse(response)
+    const normalizedReports = extractReports(payload).map(normalizeReport)
+
+    reports.value = normalizedReports
+    pagination.total = normalizedReports.length
+    pagination.currentPage = 1
+    syncCategoryOptions(payload, normalizedReports)
+  } catch (error) {
+    reports.value = []
+    pagination.total = 0
+    categoryOptions.value = ['Semua Kategori']
+  } finally {
+    isLoadingReports.value = false
+  }
 }
 
 function openStatusModal(report) {
   selectedReport.value = { ...report }
   selectedUpdateStatus.value = report.status
-  adminNote.value = ''
+  adminNote.value = report.adminResponse || ''
   isStatusModalOpen.value = true
 }
 
@@ -149,30 +265,63 @@ function closeStatusModal() {
   adminNote.value = ''
 }
 
-function saveStatusUpdate() {
+function openImagePreview(report) {
+  if (!report.imageUrl) return
+
+  selectedImage.value = { ...report }
+  isImagePreviewOpen.value = true
+}
+
+function closeImagePreview() {
+  isImagePreviewOpen.value = false
+  selectedImage.value = null
+}
+
+async function saveStatusUpdate() {
   if (!selectedReport.value || !selectedUpdateStatus.value) return
 
-  reports.value = reports.value.map((report) => {
-    if (report.id === selectedReport.value.id) {
-      return {
-        ...report,
-        status: selectedUpdateStatus.value,
-        statusClass: getStatusClass(selectedUpdateStatus.value),
-      }
-    }
+  isSavingStatus.value = true
 
-    return report
-  })
+  try {
+    const response = await api.patch(`/admin/reports/${selectedReport.value.id}/status`, {
+      status: selectedUpdateStatus.value,
+      note: adminNote.value,
+      admin_response: adminNote.value,
+    })
 
-  console.log('Status laporan diperbarui:', {
-    reportId: selectedReport.value.id,
-    title: selectedReport.value.title,
-    status: selectedUpdateStatus.value,
-    note: adminNote.value,
-  })
+    const payload = unwrapResponse(response)
+    const updatedReport = normalizeReport(payload.report ?? payload)
 
-  closeStatusModal()
+    reports.value = reports.value.map((report) =>
+      report.id === selectedReport.value.id
+        ? {
+            ...report,
+            ...updatedReport,
+            status: updatedReport.status || selectedUpdateStatus.value,
+            statusClass: updatedReport.status
+              ? updatedReport.statusClass
+              : getStatusClass(selectedUpdateStatus.value),
+          }
+        : report
+    )
+
+    await fetchStats()
+    closeStatusModal()
+  } finally {
+    isSavingStatus.value = false
+  }
 }
+
+function setPage(page) {
+  if (page < 1 || page > pageCount.value) return
+
+  pagination.currentPage = page
+}
+
+onMounted(() => {
+  fetchStats()
+  fetchReports()
+})
 </script>
 
 <template>
@@ -194,7 +343,10 @@ function saveStatusUpdate() {
               </p>
             </div>
 
-            <div class="mb-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            <div
+              v-if="stats.length > 0"
+              class="mb-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-4"
+            >
               <article
                 v-for="stat in stats"
                 :key="stat.title"
@@ -205,7 +357,10 @@ function saveStatusUpdate() {
                     {{ stat.title }}
                   </p>
 
-                  <div class="grid size-10 place-items-center rounded-lg" :class="stat.iconClass">
+                  <div
+                    class="grid size-10 place-items-center rounded-lg"
+                    :class="stat.iconClass"
+                  >
                     <component :is="stat.icon" :size="22" />
                   </div>
                 </div>
@@ -213,14 +368,26 @@ function saveStatusUpdate() {
                 <h2 class="text-4xl font-extrabold leading-none tracking-tight text-slate-950">
                   {{ stat.value }}
                 </h2>
-                <p class="mt-2 text-sm font-medium" :class="stat.descriptionClass">
+
+                <p
+                  class="mt-2 text-sm font-medium"
+                  :class="stat.descriptionClass"
+                >
                   {{ stat.description }}
                 </p>
               </article>
             </div>
 
-            <section class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div class="grid gap-3 lg:grid-cols-[1fr_160px_170px_120px]">
+            <section class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div class="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h2 class="text-lg font-extrabold text-slate-950">
+                    Filter Laporan
+                  </h2>
+                </div>
+              </div>
+
+              <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_240px]">
                 <label class="relative">
                   <Search
                     :size="20"
@@ -230,7 +397,7 @@ function saveStatusUpdate() {
                   <input
                     v-model="searchKeyword"
                     type="search"
-                    placeholder="Cari berdasarkan judul atau pelapor..."
+                    placeholder="Cari berdasarkan judul, pelapor, kategori, lokasi..."
                     class="h-12 w-full rounded-lg border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   />
                 </label>
@@ -240,10 +407,12 @@ function saveStatusUpdate() {
                     v-model="selectedStatus"
                     class="h-12 w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-4 pr-10 text-sm font-medium text-slate-600 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   >
-                    <option>Semua Status</option>
-                    <option>Dikirim</option>
-                    <option>Diproses</option>
-                    <option>Selesai</option>
+                    <option
+                      v-for="status in statusOptions"
+                      :key="status"
+                    >
+                      {{ status }}
+                    </option>
                   </select>
 
                   <ChevronDown
@@ -257,10 +426,12 @@ function saveStatusUpdate() {
                     v-model="selectedCategory"
                     class="h-12 w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-4 pr-10 text-sm font-medium text-slate-600 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   >
-                    <option>Semua Kategori</option>
-                    <option>Kelistrikan</option>
-                    <option>Infrastruktur IT</option>
-                    <option>Fisik Bangunan</option>
+                    <option
+                      v-for="category in categoryOptions"
+                      :key="category"
+                    >
+                      {{ category }}
+                    </option>
                   </select>
 
                   <ChevronDown
@@ -268,24 +439,18 @@ function saveStatusUpdate() {
                     class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"
                   />
                 </div>
-
-                <button
-                  type="button"
-                  @click="applyFilter"
-                  class="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-extrabold text-white transition hover:bg-blue-800"
-                >
-                  <SlidersHorizontal :size="17" />
-                  Terapkan
-                </button>
               </div>
             </section>
 
             <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div class="overflow-x-auto">
-                <table class="min-w-[1280px] table-fixed border-collapse">
+                <table class="min-w-[1380px] table-fixed border-collapse">
                   <thead>
                     <tr class="border-b border-slate-200 bg-slate-50 text-left">
-                      <th class="w-[260px] px-7 py-5 text-sm font-extrabold text-slate-500">
+                      <th class="w-[130px] px-7 py-5 text-sm font-extrabold text-slate-500">
+                        Foto
+                      </th>
+                      <th class="w-[250px] px-7 py-5 text-sm font-extrabold text-slate-500">
                         Judul
                       </th>
                       <th class="w-[210px] px-7 py-5 text-sm font-extrabold text-slate-500">
@@ -294,7 +459,7 @@ function saveStatusUpdate() {
                       <th class="w-[190px] px-7 py-5 text-sm font-extrabold text-slate-500">
                         Kategori
                       </th>
-                      <th class="w-[260px] px-7 py-5 text-sm font-extrabold text-slate-500">
+                      <th class="w-[240px] px-7 py-5 text-sm font-extrabold text-slate-500">
                         Lokasi
                       </th>
                       <th class="w-[160px] px-7 py-5 text-sm font-extrabold text-slate-500">
@@ -310,13 +475,58 @@ function saveStatusUpdate() {
                   </thead>
 
                   <tbody>
+                    <tr v-if="isLoadingReports">
+                      <td colspan="8" class="px-7 py-12 text-center">
+                        <p class="text-base font-bold text-slate-700">
+                          Memuat laporan...
+                        </p>
+                      </td>
+                    </tr>
+
                     <tr
-                      v-for="report in filteredReports"
+                      v-for="report in paginatedReports"
+                      v-else
                       :key="report.id"
                       class="border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
                     >
                       <td class="px-7 py-6">
-                        <p class="text-base font-extrabold text-slate-900">
+                        <button
+                          type="button"
+                          :disabled="!report.imageUrl"
+                          @click="openImagePreview(report)"
+                          class="relative h-16 w-20 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 transition"
+                          :class="
+                            report.imageUrl
+                              ? 'cursor-pointer hover:border-blue-400 hover:ring-4 hover:ring-blue-100'
+                              : 'cursor-not-allowed opacity-70'
+                          "
+                          :aria-label="
+                            report.imageUrl
+                              ? `Preview foto ${report.title}`
+                              : `Tidak ada foto untuk ${report.title}`
+                          "
+                        >
+                          <img
+                            v-if="report.imageUrl"
+                            :src="report.imageUrl"
+                            :alt="report.title"
+                            class="h-full w-full object-cover"
+                          />
+
+                          <div
+                            v-else
+                            class="grid h-full w-full place-items-center text-slate-400"
+                          >
+                            <FileImage :size="22" />
+                          </div>
+                        </button>
+                      </td>
+
+                      <td class="px-7 py-6">
+                        <p
+                          class="truncate text-base font-extrabold text-slate-900"
+                          :title="report.title"
+                        >
                           {{ report.title }}
                         </p>
                       </td>
@@ -324,24 +534,31 @@ function saveStatusUpdate() {
                       <td class="px-7 py-6">
                         <div class="flex items-center gap-3">
                           <div
-                            class="grid size-7 place-items-center rounded-full bg-slate-800 text-[9px] font-extrabold text-white"
+                            class="grid size-7 shrink-0 place-items-center rounded-full bg-slate-800 text-[9px] font-extrabold text-white"
                           >
                             {{ report.reporterInitial }}
                           </div>
-                          <p class="text-sm font-medium text-slate-700">
+
+                          <p
+                            class="truncate text-sm font-medium text-slate-700"
+                            :title="report.reporter"
+                          >
                             {{ report.reporter }}
                           </p>
                         </div>
                       </td>
 
                       <td class="px-7 py-6">
-                        <span class="rounded bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700">
+                        <span class="inline-block max-w-full truncate rounded bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700">
                           {{ report.category }}
                         </span>
                       </td>
 
                       <td class="px-7 py-6">
-                        <p class="text-sm font-medium text-slate-500">
+                        <p
+                          class="truncate text-sm font-medium text-slate-500"
+                          :title="report.location"
+                        >
                           {{ report.location }}
                         </p>
                       </td>
@@ -367,7 +584,6 @@ function saveStatusUpdate() {
                             type="button"
                             @click="openStatusModal(report)"
                             class="grid size-9 place-items-center rounded-lg text-slate-400 transition hover:bg-blue-50 hover:text-blue-700"
-                            :class="report.id === 2 ? 'bg-blue-50 text-blue-700 shadow-sm' : ''"
                             :aria-label="`Ubah status ${report.title}`"
                           >
                             <ClipboardList :size="18" />
@@ -376,8 +592,8 @@ function saveStatusUpdate() {
                       </td>
                     </tr>
 
-                    <tr v-if="filteredReports.length === 0">
-                      <td colspan="7" class="px-7 py-12 text-center">
+                    <tr v-if="filteredReports.length === 0 && !isLoadingReports">
+                      <td colspan="8" class="px-7 py-12 text-center">
                         <p class="text-base font-bold text-slate-700">
                           Tidak ada laporan ditemukan.
                         </p>
@@ -394,41 +610,44 @@ function saveStatusUpdate() {
                 class="flex flex-col gap-4 border-t border-slate-100 px-7 py-5 md:flex-row md:items-center md:justify-between"
               >
                 <p class="text-sm font-medium text-slate-500">
-                  Menampilkan 1-3 dari 1,284 laporan
+                  Menampilkan {{ paginatedReports.length }} dari {{ totalReports }} laporan
                 </p>
 
-                <div class="flex items-center gap-2">
+                <div
+                  v-if="pageCount > 1"
+                  class="flex items-center gap-2"
+                >
                   <button
                     type="button"
+                    :disabled="pagination.currentPage === 1"
+                    @click="setPage(pagination.currentPage - 1)"
                     class="grid size-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+                    :class="pagination.currentPage === 1 ? 'cursor-not-allowed opacity-50' : ''"
                   >
                     <ChevronLeft :size="18" />
                   </button>
 
                   <button
+                    v-for="page in visiblePages"
+                    :key="page"
                     type="button"
-                    class="grid size-9 place-items-center rounded-lg bg-blue-700 text-sm font-extrabold text-white"
+                    @click="setPage(page)"
+                    class="grid size-9 place-items-center rounded-lg text-sm font-extrabold transition"
+                    :class="
+                      pagination.currentPage === page
+                        ? 'bg-blue-700 text-white'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    "
                   >
-                    1
+                    {{ page }}
                   </button>
 
                   <button
                     type="button"
-                    class="grid size-9 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-extrabold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    2
-                  </button>
-
-                  <button
-                    type="button"
-                    class="grid size-9 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-extrabold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    3
-                  </button>
-
-                  <button
-                    type="button"
+                    :disabled="pagination.currentPage === pageCount"
+                    @click="setPage(pagination.currentPage + 1)"
                     class="grid size-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                    :class="pagination.currentPage === pageCount ? 'cursor-not-allowed opacity-50' : ''"
                   >
                     <ChevronRight :size="18" />
                   </button>
@@ -440,12 +659,11 @@ function saveStatusUpdate() {
       </div>
     </div>
 
-    <!-- Modal Update Status -->
     <div
       v-if="isStatusModalOpen"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 backdrop-blur-sm"
     >
-      <div class="w-full max-w-[560px] rounded-2xl bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]">
+      <div class="w-full max-w-[620px] rounded-2xl bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]">
         <div class="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <h2 class="text-[28px] font-extrabold tracking-tight text-slate-950">
             Update Status Laporan
@@ -464,19 +682,46 @@ function saveStatusUpdate() {
         <div class="space-y-5 px-6 py-6">
           <div
             v-if="selectedReport"
-            class="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-4"
+            class="overflow-hidden rounded-xl border border-blue-100 bg-blue-50"
           >
-            <div class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-white text-blue-700">
-              <FileText :size="16" />
-            </div>
+            <div class="grid gap-4 p-4 sm:grid-cols-[120px_1fr]">
+              <div
+                class="h-24 overflow-hidden rounded-lg border border-blue-100 bg-white"
+              >
+                <img
+                  v-if="selectedReport.imageUrl"
+                  :src="selectedReport.imageUrl"
+                  :alt="selectedReport.title"
+                  class="h-full w-full object-cover"
+                />
 
-            <div class="min-w-0">
-              <p class="text-base font-extrabold text-blue-700">
-                {{ selectedReport.title }}
-              </p>
-              <p class="mt-1 text-sm text-blue-600">
-                Dilaporkan oleh {{ selectedReport.reporter }} • {{ selectedReport.location }}
-              </p>
+                <div
+                  v-else
+                  class="grid h-full w-full place-items-center text-slate-400"
+                >
+                  <FileImage :size="28" />
+                </div>
+              </div>
+
+              <div class="min-w-0">
+                <p
+                  class="truncate text-base font-extrabold text-blue-700"
+                  :title="selectedReport.title"
+                >
+                  {{ selectedReport.title }}
+                </p>
+
+                <p
+                  class="mt-1 truncate text-sm text-blue-600"
+                  :title="selectedReport.location"
+                >
+                  Dilaporkan oleh {{ selectedReport.reporter }} / {{ selectedReport.location }}
+                </p>
+
+                <p class="mt-3 text-xs font-extrabold uppercase tracking-wide text-blue-700">
+                  {{ selectedReport.category }}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -498,7 +743,9 @@ function saveStatusUpdate() {
               >
                 <div class="flex items-center gap-3">
                   <span class="size-3 rounded-full bg-yellow-400"></span>
-                  <span class="text-base font-semibold text-slate-800">Dikirim</span>
+                  <span class="text-base font-semibold text-slate-800">
+                    Dikirim
+                  </span>
                 </div>
 
                 <CheckCircle2
@@ -523,7 +770,9 @@ function saveStatusUpdate() {
               >
                 <div class="flex items-center gap-3">
                   <span class="size-3 rounded-full bg-blue-500"></span>
-                  <span class="text-base font-semibold text-slate-800">Diproses</span>
+                  <span class="text-base font-semibold text-slate-800">
+                    Diproses
+                  </span>
                 </div>
 
                 <CheckCircle2
@@ -548,7 +797,9 @@ function saveStatusUpdate() {
               >
                 <div class="flex items-center gap-3">
                   <span class="size-3 rounded-full bg-green-500"></span>
-                  <span class="text-base font-semibold text-slate-800">Selesai</span>
+                  <span class="text-base font-semibold text-slate-800">
+                    Selesai
+                  </span>
                 </div>
 
                 <CheckCircle2
@@ -564,7 +815,10 @@ function saveStatusUpdate() {
           </div>
 
           <div>
-            <label for="admin-note" class="mb-2 block text-sm font-semibold text-slate-700">
+            <label
+              for="admin-note"
+              class="mb-2 block text-sm font-semibold text-slate-700"
+            >
               Catatan Admin (Opsional):
             </label>
 
@@ -589,11 +843,54 @@ function saveStatusUpdate() {
 
           <button
             type="button"
+            :disabled="isSavingStatus"
             @click="saveStatusUpdate"
-            class="inline-flex h-12 items-center justify-center rounded-xl bg-blue-700 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800"
+            class="inline-flex h-12 items-center justify-center rounded-xl bg-blue-700 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Simpan Perubahan
+            {{ isSavingStatus ? 'Menyimpan...' : 'Simpan Perubahan' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="isImagePreviewOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 backdrop-blur-sm"
+      @click.self="closeImagePreview"
+    >
+      <div class="w-full max-w-[900px] overflow-hidden rounded-2xl bg-white shadow-[0_20px_70px_rgba(15,23,42,0.32)]">
+        <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div class="min-w-0">
+            <p class="text-xs font-extrabold uppercase tracking-wide text-blue-700">
+              Preview Foto Laporan
+            </p>
+            <h2
+              class="mt-1 truncate text-2xl font-extrabold text-slate-950"
+              :title="selectedImage?.title"
+            >
+              {{ selectedImage?.title }}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            @click="closeImagePreview"
+            class="grid size-10 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Tutup preview foto"
+          >
+            <X :size="21" />
+          </button>
+        </div>
+
+        <div class="bg-slate-950/5 p-4 sm:p-6">
+          <div class="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+            <img
+              v-if="selectedImage?.imageUrl"
+              :src="selectedImage.imageUrl"
+              :alt="selectedImage.title"
+              class="max-h-[72vh] w-full object-contain"
+            />
+          </div>
         </div>
       </div>
     </div>

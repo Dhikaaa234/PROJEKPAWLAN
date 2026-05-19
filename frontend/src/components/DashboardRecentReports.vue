@@ -1,44 +1,43 @@
 <script setup>
 import { ChevronRight } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
-const reports = [
-  {
-    id: 1,
-    title: 'AC Ruang Kelas G.21 Mati Total',
-    description: 'Pendingin ruangan di gedung G lantai 2 tidak bisa dinyalakan sejak pagi...',
-    status: 'Dikirim',
-    time: '2 menit yang lalu',
-    imageClass: 'bg-slate-800',
-    emoji: '❄️',
+const props = defineProps({
+  reports: {
+    type: Array,
+    default: () => [],
   },
-  {
-    id: 2,
-    title: 'Kebocoran Pipa Wastafel Toilet Lantai 1',
-    description: 'Air menggenang di area toilet pria gedung A karena pipa bocor...',
-    status: 'Diproses',
-    time: '1 jam yang lalu',
-    imageClass: 'bg-slate-900',
-    emoji: '🚰',
+  isLoading: {
+    type: Boolean,
+    default: false,
   },
-  {
-    id: 3,
-    title: 'Proyektor Ruang Seminar Burem',
-    description: 'Lensa proyektor sudah dibersihkan dan kalibrasi warna selesai...',
-    status: 'Selesai',
-    time: '3 jam yang lalu',
-    imageClass: 'bg-slate-800',
-    emoji: '📽️',
-  },
-]
+})
+
+const router = useRouter()
+const displayedReports = computed(() => props.reports.slice(0, 5))
 
 function getStatusClass(status) {
   const classes = {
     Dikirim: 'bg-amber-50 text-amber-600',
     Diproses: 'bg-blue-50 text-blue-600',
     Selesai: 'bg-green-50 text-green-600',
+    Dibatalkan: 'bg-red-50 text-red-600',
   }
 
   return classes[status] || 'bg-slate-100 text-slate-600'
+}
+
+function getImageClass(report) {
+  return report.imageClass || 'bg-slate-800'
+}
+
+function getImageLabel(report) {
+  return report.imageLabel || report.category || ''
+}
+
+function goToAllReports() {
+  router.push('/semua-laporan')
 }
 </script>
 
@@ -51,6 +50,7 @@ function getStatusClass(status) {
 
       <button
         type="button"
+        @click="goToAllReports"
         class="text-sm font-bold leading-tight text-blue-700 transition hover:text-blue-900"
       >
         Lihat<br />
@@ -58,17 +58,50 @@ function getStatusClass(status) {
       </button>
     </div>
 
-    <div class="divide-y divide-slate-100">
+    <div
+      v-if="isLoading"
+      class="px-6 py-10 text-center"
+    >
+      <p class="text-sm font-bold text-slate-600">
+        Memuat laporan terbaru...
+      </p>
+    </div>
+
+    <div
+      v-else-if="displayedReports.length === 0"
+      class="px-6 py-10 text-center"
+    >
+      <p class="text-sm font-bold text-slate-700">
+        Belum ada laporan terbaru.
+      </p>
+    </div>
+
+    <div
+      v-else
+      class="divide-y divide-slate-100"
+    >
       <article
-        v-for="report in reports"
+        v-for="report in displayedReports"
         :key="report.id"
         class="group flex items-center gap-4 px-4 py-4 transition hover:bg-slate-50 sm:px-6"
       >
         <div
-          class="grid size-16 shrink-0 place-items-center rounded-lg text-2xl text-white"
-          :class="report.imageClass"
+          class="grid size-16 shrink-0 place-items-center overflow-hidden rounded-lg px-2 text-center text-xs font-extrabold uppercase text-white"
+          :class="report.imageUrl ? 'bg-slate-100' : getImageClass(report)"
         >
-          {{ report.emoji }}
+          <img
+            v-if="report.imageUrl"
+            :src="report.imageUrl"
+            :alt="report.title"
+            class="size-full object-cover"
+          />
+
+          <span
+            v-else
+            class="truncate"
+          >
+            {{ getImageLabel(report) }}
+          </span>
         </div>
 
         <div class="min-w-0 flex-1">
@@ -97,13 +130,12 @@ function getStatusClass(status) {
         <button
           type="button"
           :aria-label="`Buka ${report.title}`"
+          @click="goToAllReports"
           class="grid size-9 shrink-0 place-items-center rounded-full text-slate-400 transition group-hover:bg-white group-hover:text-blue-700"
         >
           <ChevronRight :size="22" />
         </button>
       </article>
     </div>
-
-    <div class="h-40 sm:h-48 lg:h-52"></div>
   </section>
 </template>

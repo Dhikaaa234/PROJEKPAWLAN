@@ -1,17 +1,23 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, Settings } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
+import api from '../services/api'
 
 const router = useRouter()
 const auth = useAuthStore()
 
-const userInitials = computed(() => {
-  const name = auth.user?.name || 'Admin Filkom'
+const unreadNotificationCount = ref(0)
 
-  return name
+const displayName = computed(() => {
+  return auth.user?.nama || auth.user?.name || 'User Filkom'
+})
+
+const userInitials = computed(() => {
+  return displayName.value
     .split(' ')
+    .filter(Boolean)
     .map((word) => word[0])
     .join('')
     .slice(0, 2)
@@ -27,21 +33,43 @@ const userRoleLabel = computed(() => {
     return 'Super Admin'
   }
 
-  if (auth.user?.role === 'user') {
-    return 'Mahasiswa'
-  }
-
-  return 'Super Admin'
+  return 'Mahasiswa'
 })
 
-function goToNotifications() {
-  if (auth.user?.role === 'admin') {
-    router.push('/admin/notifikasi')
-    return
-  }
+const notificationPath = computed(() => {
+  return auth.user?.role === 'admin' ? '/admin/notifikasi' : '/notifikasi'
+})
 
-  router.push('/notifikasi')
+const notificationEndpoint = computed(() => {
+  return auth.user?.role === 'admin' ? '/admin/notifications' : '/notifications'
+})
+
+async function fetchUnreadNotifications() {
+  if (!auth.isAuthenticated) return
+
+  try {
+    const response = await api.get(notificationEndpoint.value)
+    const payload = response?.data?.data ?? response?.data ?? {}
+
+    const notifications = Array.isArray(payload)
+      ? payload
+      : payload.notifications || payload.items || []
+
+    unreadNotificationCount.value = notifications.filter((notification) => {
+      return Boolean(notification.unread ?? !notification.read_at)
+    }).length
+  } catch (error) {
+    unreadNotificationCount.value = 0
+  }
 }
+
+function goToNotifications() {
+  router.push(notificationPath.value)
+}
+
+onMounted(() => {
+  fetchUnreadNotifications()
+})
 </script>
 
 <template>
@@ -57,9 +85,16 @@ function goToNotifications() {
         type="button"
         aria-label="Notifikasi"
         @click="goToNotifications"
-        class="grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
+        class="relative grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
       >
         <Bell :size="20" />
+
+        <span
+          v-if="unreadNotificationCount > 0"
+          class="absolute right-1.5 top-1.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-white"
+        >
+          {{ unreadNotificationCount > 99 ? '99+' : unreadNotificationCount }}
+        </span>
       </button>
 
       <button
@@ -81,7 +116,7 @@ function goToNotifications() {
 
         <div class="hidden leading-tight sm:block">
           <p class="text-sm font-bold text-slate-950">
-            {{ auth.user?.name || 'Admin Filkom' }}
+            {{ displayName }}
           </p>
           <p class="text-xs text-slate-500">
             {{ userRoleLabel }}

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   BarChart3,
@@ -10,24 +10,36 @@ import {
   ChevronLeft,
   CirclePlus,
   ClipboardList,
-  Filter,
   Info,
   LayoutDashboard,
   LogOut,
   RefreshCcw,
-  Search,
-  Settings,
   TriangleAlert,
   UserSearch,
+  X,
 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
+import api from '../services/api'
 import DashboardSidebar from '../components/DashboardSidebar.vue'
+import DashboardTopbar from '../components/DashboardTopbar.vue'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
 const isMobileMenuOpen = ref(false)
+const selectedNotification = ref(null)
+const isDetailModalOpen = ref(false)
+const isLoadingNotifications = ref(false)
+const notifications = ref([])
+
+watch(isDetailModalOpen, (isOpen) => {
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+})
+
+onUnmounted(() => {
+  document.body.style.overflow = ''
+})
 
 const menuItems = [
   {
@@ -57,85 +69,72 @@ const menuItems = [
   },
 ]
 
-const newNotifications = ref([
-  {
-    id: 1,
-    title: 'Ada laporan baru: AC Ruang H3.1 Tidak Dingin',
-    description:
-      'Seorang mahasiswa melaporkan masalah suhu pada ruangan H3.1. Harap segera ditinjau dan diteruskan ke tim teknisi.',
-    time: 'Baru saja',
-    tag: 'ADMIN NOTIFICATION',
-    tagClass: 'text-blue-700',
-    icon: Bell,
-    iconClass: 'bg-blue-100 text-blue-700',
-    unread: true,
-  },
-  {
-    id: 2,
-    title: 'Laporan [Proyektor Mati Gedung B] telah diproses',
-    description:
-      'Status laporan Anda telah berubah menjadi "Diproses". Tim teknis sedang dalam perjalanan menuju lokasi.',
-    time: '10 menit yang lalu',
-    tag: 'STATUS UPDATE',
-    tagClass: 'bg-amber-50 text-amber-700',
-    icon: RefreshCcw,
-    iconClass: 'bg-yellow-100 text-yellow-700',
-    unread: true,
-  },
-  {
-    id: 3,
-    title: 'Pembaruan Sistem FilkomCare v2.1',
-    description:
-      'Kami telah menambahkan fitur baru untuk pelacakan laporan secara real-time. Periksa dashboard Anda untuk melihat perubahannya.',
-    time: '1 jam yang lalu',
-    tag: '',
-    tagClass: '',
-    icon: Info,
-    iconClass: 'bg-blue-100 text-blue-700',
-    unread: true,
-  },
-])
+const allNotifications = computed(() => notifications.value)
 
-const yesterdayNotifications = ref([
-  {
-    id: 4,
-    title: 'Laporan [Kebocoran Kran Musholla] Selesai',
-    description:
-      'Perbaikan telah selesai dilakukan. Terima kasih atas laporan Anda untuk membantu menjaga fasilitas kampus.',
-    time: 'Kemarin, 14:20',
-    icon: CheckCircle2,
-    iconClass: 'bg-green-100 text-green-700',
-  },
-  {
-    id: 5,
-    title: 'Laporan baru berhasil dikirim',
-    description:
-      'Laporan Anda mengenai "Kursi Patah di Gazebo" telah kami terima dan sedang mengantri untuk peninjauan.',
-    time: 'Kemarin, 09:15',
-    icon: ClipboardList,
-    iconClass: 'bg-slate-100 text-slate-500',
-  },
-  {
-    id: 6,
-    title: 'Laporan Ditolak: Detail Kurang Lengkap',
-    description:
-      'Laporan mengenai "Kerusakan Kabel" ditolak karena foto dan lokasi gedung tidak dilampirkan dengan jelas.',
-    time: '2 hari yang lalu',
-    icon: TriangleAlert,
-    iconClass: 'bg-red-100 text-red-600',
-  },
-])
+function unwrapResponse(response) {
+  return response?.data?.data ?? response?.data ?? {}
+}
 
-const userInitials = computed(() => {
-  const name = auth.user?.name || 'Admin Filkom'
+function extractNotifications(payload) {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload.notifications)) return payload.notifications
+  if (Array.isArray(payload.items)) return payload.items
+  return []
+}
 
-  return name
-    .split(' ')
-    .map((word) => word[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
-})
+function getNotificationIcon(type) {
+  const icons = {
+    report_created: ClipboardList,
+    report_updated: RefreshCcw,
+    report_done: CheckCircle2,
+    warning: TriangleAlert,
+    info: Info,
+  }
+
+  return icons[type] || Bell
+}
+
+function getNotificationIconClass(type) {
+  const classes = {
+    report_created: 'bg-slate-100 text-slate-500',
+    report_updated: 'bg-yellow-100 text-yellow-700',
+    report_done: 'bg-green-100 text-green-700',
+    warning: 'bg-red-100 text-red-600',
+    info: 'bg-blue-100 text-blue-700',
+  }
+
+  return classes[type] || 'bg-blue-100 text-blue-700'
+}
+
+function normalizeNotification(notification) {
+  const type = notification.type ?? notification.category ?? 'info'
+
+  return {
+    id: notification.id,
+    title: notification.title ?? '',
+    description: notification.description ?? notification.message ?? '',
+    time: notification.time ?? notification.createdAt ?? notification.created_at ?? '',
+    tag: notification.tag ?? '',
+    tagClass: notification.tagClass ?? '',
+    icon: notification.icon ?? getNotificationIcon(type),
+    iconClass: notification.iconClass ?? getNotificationIconClass(type),
+    unread: Boolean(notification.unread ?? !notification.read_at),
+  }
+}
+
+async function fetchNotifications() {
+  isLoadingNotifications.value = true
+
+  try {
+    const response = await api.get('/notifications')
+    const payload = unwrapResponse(response)
+    notifications.value = extractNotifications(payload).map(normalizeNotification)
+  } catch (error) {
+    notifications.value = []
+  } finally {
+    isLoadingNotifications.value = false
+  }
+}
 
 function isActive(path) {
   return route.path === path
@@ -163,12 +162,42 @@ function logout() {
   router.push('/login')
 }
 
-function markAllAsRead() {
-  newNotifications.value = newNotifications.value.map((notification) => ({
+async function markAllAsRead() {
+  notifications.value = notifications.value.map((notification) => ({
     ...notification,
     unread: false,
   }))
+
+  try {
+    await api.patch('/notifications/read-all')
+  } catch (error) {
+    await fetchNotifications()
+  }
 }
+
+async function openNotificationDetail(notification) {
+  selectedNotification.value = notification
+  isDetailModalOpen.value = true
+
+  notifications.value = notifications.value.map((item) =>
+    item.id === notification.id ? { ...item, unread: false } : item
+  )
+
+  try {
+    await api.patch(`/notifications/${notification.id}/read`)
+  } catch (error) {
+    notifications.value = notifications.value.map((item) =>
+      item.id === notification.id ? { ...item, unread: notification.unread } : item
+    )
+  }
+}
+
+function closeNotificationDetail() {
+  selectedNotification.value = null
+  isDetailModalOpen.value = false
+}
+
+onMounted(fetchNotifications)
 </script>
 
 <template>
@@ -177,51 +206,7 @@ function markAllAsRead() {
       <DashboardSidebar />
 
       <div class="min-w-0 flex-1">
-        <header
-          class="sticky top-0 z-30 flex h-[66px] items-center justify-between border-b border-slate-200 bg-white/95 px-5 backdrop-blur md:px-8"
-        >
-          <h2 class="text-xl font-extrabold tracking-tight text-blue-700">
-            FilkomCare
-          </h2>
-
-          <div class="flex items-center gap-4">
-
-            <button
-              type="button"
-              aria-label="Notifikasi"
-              class="grid size-9 place-items-center rounded-full text-blue-700 transition hover:bg-slate-100"
-            >
-              <Bell :size="20" />
-            </button>
-
-            <button
-              type="button"
-              aria-label="Pengaturan"
-              class="grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
-            >
-              <Settings :size="20" />
-            </button>
-
-            <div class="hidden h-8 w-px bg-slate-200 md:block"></div>
-
-            <div class="flex items-center gap-3">
-              <div
-                class="grid size-10 place-items-center rounded-full bg-orange-100 text-sm font-extrabold text-orange-700 ring-2 ring-orange-50"
-              >
-                {{ userInitials }}
-              </div>
-
-              <div class="hidden leading-tight sm:block">
-                <p class="text-sm font-bold text-slate-950">
-                  {{ auth.user?.name || 'Admin Filkom' }}
-                </p>
-                <p class="text-xs text-slate-500">
-                  {{ auth.user?.roleLabel || 'Super Admin' }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </header>
+        <DashboardTopbar />
 
         <button
           type="button"
@@ -307,108 +292,140 @@ function markAllAsRead() {
                   <Check :size="17" />
                   Tandai Semua Dibaca
                 </button>
-
-                <button
-                  type="button"
-                  class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-800"
-                >
-                  <Filter :size="17" />
-                  Filter
-                </button>
               </div>
             </div>
 
             <section class="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
-              <div class="border-b border-slate-300 bg-[#f1f0fb] px-6 py-3">
-                <h2 class="text-sm font-extrabold uppercase tracking-wide text-slate-600">
-                  Terbaru (3)
-                </h2>
-              </div>
-
-              <div class="relative border-l-4 border-blue-700 bg-blue-50/40">
-                <article
-                  v-for="notification in newNotifications"
-                  :key="notification.id"
-                  class="grid gap-4 border-b border-slate-300 px-6 py-6 last:border-b-0 md:grid-cols-[48px_1fr_170px]"
-                  :class="notification.unread ? 'bg-blue-50/40' : 'bg-white'"
+              <article
+                v-for="notification in allNotifications"
+                :key="notification.id"
+                role="button"
+                tabindex="0"
+                class="grid cursor-pointer gap-4 border-b border-slate-200 px-6 py-6 transition last:border-b-0 hover:bg-blue-50/50 md:grid-cols-[48px_1fr_170px]"
+                :class="notification.unread ? 'bg-blue-50/40' : 'bg-white'"
+                @click="openNotificationDetail(notification)"
+                @keydown.enter="openNotificationDetail(notification)"
+              >
+                <div
+                  class="grid size-12 place-items-center rounded-full"
+                  :class="notification.iconClass"
                 >
-                  <div
-                    class="grid size-12 place-items-center rounded-full"
-                    :class="notification.iconClass"
-                  >
-                    <component :is="notification.icon" :size="22" />
-                  </div>
+                  <component :is="notification.icon" :size="22" />
+                </div>
 
-                  <div>
-                    <h3 class="text-base font-extrabold text-slate-950">
-                      {{ notification.title }}
-                    </h3>
-
-                    <p class="mt-1 max-w-[780px] text-base leading-relaxed text-slate-600">
-                      {{ notification.description }}
-                    </p>
-
-                    <p
-                      v-if="notification.tag"
-                      class="mt-4 inline-flex rounded-full px-3 py-1 text-xs font-extrabold"
-                      :class="notification.tagClass"
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h3
+                      class="text-base font-extrabold"
+                      :class="notification.unread ? 'text-slate-950' : 'text-slate-700'"
                     >
-                      {{ notification.tag }}
-                    </p>
-                  </div>
-
-                  <p class="text-left text-sm font-bold text-blue-700 md:text-right">
-                    {{ notification.time }}
-                  </p>
-                </article>
-              </div>
-
-              <div class="border-y border-slate-300 bg-[#f1f0fb] px-6 py-3">
-                <h2 class="text-sm font-extrabold uppercase tracking-wide text-slate-600">
-                  Kemarin
-                </h2>
-              </div>
-
-              <div>
-                <article
-                  v-for="notification in yesterdayNotifications"
-                  :key="notification.id"
-                  class="grid gap-4 border-b border-slate-200 px-6 py-6 last:border-b-0 md:grid-cols-[48px_1fr_170px]"
-                >
-                  <div
-                    class="grid size-12 place-items-center rounded-full"
-                    :class="notification.iconClass"
-                  >
-                    <component :is="notification.icon" :size="22" />
-                  </div>
-
-                  <div>
-                    <h3 class="text-base font-extrabold text-slate-700">
                       {{ notification.title }}
                     </h3>
 
-                    <p class="mt-1 max-w-[780px] text-base leading-relaxed text-slate-500">
-                      {{ notification.description }}
-                    </p>
+                    <span
+                      v-if="notification.unread"
+                      class="size-2 rounded-full bg-blue-700"
+                    ></span>
                   </div>
 
-                  <p class="text-left text-sm font-medium text-slate-500 md:text-right">
-                    {{ notification.time }}
+                  <p class="mt-1 max-w-[780px] line-clamp-2 text-base leading-relaxed text-slate-600">
+                    {{ notification.description }}
                   </p>
-                </article>
-              </div>
 
-              <div class="border-t border-slate-200 bg-white px-6 py-6 text-center">
-                <button
-                  type="button"
-                  class="text-base font-extrabold text-blue-700 transition hover:text-blue-900"
-                >
-                  Muat Notifikasi Sebelumnya
-                </button>
+                  <p
+                    v-if="notification.tag"
+                    class="mt-4 inline-flex rounded-full px-3 py-1 text-xs font-extrabold"
+                    :class="notification.tagClass"
+                  >
+                    {{ notification.tag }}
+                  </p>
+                </div>
+
+                <p class="text-left text-sm font-bold text-blue-700 md:text-right">
+                  {{ notification.time }}
+                </p>
+              </article>
+
+              <div
+                v-if="allNotifications.length === 0 && !isLoadingNotifications"
+                class="px-6 py-12 text-center"
+              >
+                <p class="text-base font-bold text-slate-700">
+                  Belum ada notifikasi.
+                </p>
               </div>
             </section>
           </section>
         </main>
+      </div>
+    </div>
+
+    <div
+      v-if="isDetailModalOpen && selectedNotification"
+      class="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 px-4 py-10 backdrop-blur-sm"
+      @click.self="closeNotificationDetail"
+    >
+      <div class="mx-auto flex min-h-full w-full max-w-[620px] items-start justify-center">
+        <div class="w-full overflow-hidden rounded-2xl bg-white shadow-[0_20px_70px_rgba(15,23,42,0.28)]">
+          <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+            <div class="flex items-start gap-4">
+              <div
+                class="grid size-12 shrink-0 place-items-center rounded-full"
+                :class="selectedNotification.iconClass"
+              >
+                <component :is="selectedNotification.icon" :size="22" />
+              </div>
+
+              <div>
+                <h2 class="text-xl font-extrabold leading-tight text-slate-950">
+                  Detail Notifikasi
+                </h2>
+                <p class="mt-1 text-sm font-medium text-slate-500">
+                  {{ selectedNotification.time }}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="grid size-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Tutup detail notifikasi"
+              @click="closeNotificationDetail"
+            >
+              <X :size="20" />
+            </button>
+          </div>
+
+          <div class="px-6 py-6">
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+              <p
+                v-if="selectedNotification.tag"
+                class="inline-flex rounded-full px-3 py-1 text-xs font-extrabold"
+                :class="selectedNotification.tagClass"
+              >
+                {{ selectedNotification.tag }}
+              </p>
+            </div>
+
+            <h3 class="text-2xl font-extrabold leading-tight text-slate-950">
+              {{ selectedNotification.title }}
+            </h3>
+
+            <p class="mt-4 text-base leading-relaxed text-slate-600">
+              {{ selectedNotification.description }}
+            </p>
+          </div>
+
+          <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-6 py-4">
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-lg bg-blue-700 px-5 text-sm font-extrabold text-white transition hover:bg-blue-800"
+              @click="closeNotificationDetail"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

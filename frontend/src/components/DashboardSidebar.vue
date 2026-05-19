@@ -53,15 +53,15 @@ function goTo(path) {
   }
 }
 
-function logout() {
-  auth.logout()
-  router.push('/login')
+async function logout() {
+  await auth.logout()
+  await router.replace('/login')
 }
 </script>
 
 <template>
   <aside
-    class="hidden min-h-screen w-[260px] shrink-0 border-r border-slate-200 bg-white px-4 py-6 lg:flex lg:flex-col"
+    class="hidden h-screen w-[260px] shrink-0 border-r border-slate-200 bg-white px-4 py-6 lg:sticky lg:top-0 lg:flex lg:flex-col"
   >
     <div class="mb-9 flex items-center gap-3 px-2">
       <div class="grid size-10 place-items-center rounded-lg bg-blue-600 text-white shadow-sm">
@@ -78,7 +78,7 @@ function logout() {
       </div>
     </div>
 
-    <nav class="space-y-2">
+    <nav class="flex-1 space-y-2 overflow-y-auto">
       <button
         v-for="item in menuItems"
         :key="item.label"
@@ -102,12 +102,13 @@ function logout() {
     </nav>
 
     <button
-      type="button"
-      @click="logout"
-      class="mt-auto flex items-center gap-3 px-4 py-5 text-sm font-medium text-slate-600 transition hover:text-red-600"
-    >
-      <LogOut :size="21" />
-      <span>Logout</span>
-    </button>
+  type="button"
+  :disabled="auth.loading"
+  @click="logout"
+  class="mt-4 flex items-center gap-3 rounded-lg px-4 py-5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+>
+  <LogOut :size="21" />
+  <span>{{ auth.loading ? 'Logout...' : 'Logout' }}</span>
+</button>
   </aside>
 </template>
