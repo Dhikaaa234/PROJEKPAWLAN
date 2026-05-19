@@ -10,18 +10,28 @@ class Report extends Model
     use HasFactory;
 
     protected $fillable = [
+        'report_code',
         'user_id',
         'category_id',
         'status_id',
-        'judul',
-        'deskripsi',
-        'lokasi',
-        'gambar',
+        'title',
+        'description',
+        'location',
+        'image_path',
+        'admin_response',
+        'cancelled_at',
+        'processed_at',
+        'completed_at',
     ];
 
-    // =========================
-    // RELATIONS
-    // =========================
+    protected function casts(): array
+    {
+        return [
+            'cancelled_at' => 'datetime',
+            'processed_at' => 'datetime',
+            'completed_at' => 'datetime',
+        ];
+    }
 
     public function user()
     {
@@ -36,5 +46,15 @@ class Report extends Model
     public function status()
     {
         return $this->belongsTo(Status::class);
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(ReportLog::class);
+    }
+
+    public function reportLogs()
+    {
+        return $this->hasMany(ReportLog::class);
     }
 }

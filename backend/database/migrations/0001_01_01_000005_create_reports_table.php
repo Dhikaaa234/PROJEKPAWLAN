@@ -13,28 +13,21 @@ return new class extends Migration
     {
         Schema::create('reports', function (Blueprint $table) {
             $table->id();
-
-            $table->foreignId('user_id')
-                ->constrained()
-                ->cascadeOnDelete();
-
-            $table->foreignId('category_id')
-                ->constrained()
-                ->cascadeOnDelete();
-
-            $table->foreignId('status_id')
-                ->constrained()
-                ->cascadeOnDelete();
-
-            $table->string('judul', 150);
-            $table->text('deskripsi');
-            $table->string('lokasi', 150);
-            $table->string('gambar')->nullable();
-
+            $table->string('report_code')->unique();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('category_id')->constrained()->restrictOnDelete();
+            $table->foreignId('status_id')->constrained()->restrictOnDelete();
+            $table->string('title');
+            $table->text('description');
+            $table->string('location');
+            $table->string('image_path')->nullable();
+            $table->text('admin_response')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
+            $table->timestamp('processed_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
             $table->timestamps();
-
-            // Index untuk performa
-            $table->index('judul');
+            $table->index(['title', 'location']);
+            $table->index(['status_id', 'category_id']);
         });
     }
 
@@ -43,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        Schema::dropIfExists('reports');
     }
 };
