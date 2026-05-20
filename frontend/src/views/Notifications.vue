@@ -108,6 +108,49 @@ function getNotificationIconClass(type) {
   return classes[type] || 'bg-blue-100 text-blue-700'
 }
 
+function getStatusClass(status) {
+  const classes = {
+    Dikirim: 'bg-yellow-100 text-yellow-700',
+    Diproses: 'bg-blue-100 text-blue-700',
+    Selesai: 'bg-green-100 text-green-700',
+    Dibatalkan: 'bg-red-100 text-red-700',
+  }
+
+  return classes[status] || 'bg-slate-100 text-slate-700'
+}
+
+function getStatusLabel(status) {
+  const labels = {
+    Dikirim: t('reports.status_sent'),
+    Diproses: t('reports.status_processed'),
+    Selesai: t('reports.status_completed'),
+    Dibatalkan: t('reports.status_cancelled'),
+  }
+
+  return labels[status] || status
+}
+
+function normalizeNotificationReport(notification) {
+  const source = notification.report ?? notification.data?.report ?? notification.data ?? null
+
+  if (!source || typeof source !== 'object') return null
+
+  const report = {
+    id: source.id ?? source.report_id ?? null,
+    code: source.code ?? source.reportCode ?? source.report_code ?? source.reportId ?? '',
+    title: source.title ?? source.reportTitle ?? source.report_title ?? '',
+    location: source.location ?? '',
+    category: source.category ?? source.categoryName ?? source.category_name ?? '',
+    oldStatus: source.oldStatus ?? source.old_status ?? '',
+    newStatus: source.newStatus ?? source.new_status ?? '',
+    adminResponse: source.adminResponse ?? source.admin_response ?? '',
+  }
+
+  const hasReportData = Object.values(report).some((value) => value !== null && value !== '')
+
+  return hasReportData ? report : null
+}
+
 function normalizeNotification(notification) {
   const type = notification.type ?? notification.category ?? 'info'
 
@@ -121,6 +164,7 @@ function normalizeNotification(notification) {
     icon: notification.icon ?? getNotificationIcon(type),
     iconClass: notification.iconClass ?? getNotificationIconClass(type),
     unread: Boolean(notification.unread ?? !notification.read_at),
+    report: normalizeNotificationReport(notification),
   }
 }
 
@@ -317,6 +361,13 @@ onMounted(fetchNotifications)
 
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
+                    <span
+                      v-if="notification.report?.code"
+                      class="rounded bg-slate-100 px-2 py-1 text-[11px] font-extrabold text-slate-600"
+                    >
+                      {{ notification.report.code }}
+                    </span>
+
                     <h3
                       class="text-base font-extrabold"
                       :class="notification.unread ? 'text-slate-950' : 'text-slate-700'"
@@ -398,7 +449,7 @@ onMounted(fetchNotifications)
             </button>
           </div>
 
-          <div class="px-6 py-6">
+          <div class="space-y-5 px-6 py-6">
             <div class="mb-4 flex flex-wrap items-center gap-2">
               <p
                 v-if="selectedNotification.tag"
@@ -409,13 +460,116 @@ onMounted(fetchNotifications)
               </p>
             </div>
 
-            <h3 class="text-2xl font-extrabold leading-tight text-slate-950">
-              {{ selectedNotification.title }}
-            </h3>
+            <section
+              v-if="selectedNotification.report"
+              class="rounded-xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-xs font-extrabold uppercase tracking-wide text-blue-700">
+                    {{ $t('notifications.report_detail') }}
+                  </p>
+                  <h3 class="mt-1 truncate text-xl font-extrabold text-slate-950">
+                    {{ selectedNotification.report.title || selectedNotification.title }}
+                  </h3>
+                </div>
 
-            <p class="mt-4 text-base leading-relaxed text-slate-600">
-              {{ selectedNotification.description }}
-            </p>
+                <span
+                  v-if="selectedNotification.report.code"
+                  class="shrink-0 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-extrabold text-white"
+                >
+                  {{ selectedNotification.report.code }}
+                </span>
+              </div>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                    {{ $t('common.location') }}
+                  </p>
+                  <p class="mt-1 text-sm font-bold text-slate-700">
+                    {{ selectedNotification.report.location || '-' }}
+                  </p>
+                </div>
+
+                <div>
+                  <p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                    {{ $t('common.category') }}
+                  </p>
+                  <p class="mt-1 text-sm font-bold text-slate-700">
+                    {{ selectedNotification.report.category || '-' }}
+                  </p>
+                </div>
+
+                <div>
+                  <p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                    {{ $t('notifications.updated_time') }}
+                  </p>
+                  <p class="mt-1 text-sm font-bold text-slate-700">
+                    {{ selectedNotification.time }}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section
+              v-if="selectedNotification.report?.oldStatus || selectedNotification.report?.newStatus"
+              class="rounded-xl border border-slate-200 bg-white p-4"
+            >
+              <p class="mb-3 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                {{ $t('notifications.status_change') }}
+              </p>
+
+              <div class="flex flex-wrap items-center gap-3">
+                <span
+                  v-if="selectedNotification.report.oldStatus"
+                  class="rounded-full px-3 py-1 text-xs font-extrabold"
+                  :class="getStatusClass(selectedNotification.report.oldStatus)"
+                >
+                  {{ getStatusLabel(selectedNotification.report.oldStatus) }}
+                </span>
+
+                <span
+                  v-if="selectedNotification.report.oldStatus && selectedNotification.report.newStatus"
+                  class="text-sm font-extrabold text-slate-400"
+                >
+                  →
+                </span>
+
+                <span
+                  v-if="selectedNotification.report.newStatus"
+                  class="rounded-full px-3 py-1 text-xs font-extrabold"
+                  :class="getStatusClass(selectedNotification.report.newStatus)"
+                >
+                  {{ getStatusLabel(selectedNotification.report.newStatus) }}
+                </span>
+              </div>
+            </section>
+
+            <section
+              v-if="selectedNotification.report?.adminResponse"
+              class="rounded-xl border border-blue-100 bg-blue-50 p-4"
+            >
+              <p class="text-xs font-extrabold uppercase tracking-wide text-blue-700">
+                {{ $t('notifications.admin_note') }}
+              </p>
+              <p class="mt-2 text-sm font-medium leading-relaxed text-slate-700">
+                {{ selectedNotification.report.adminResponse }}
+              </p>
+            </section>
+
+            <section
+              v-if="!selectedNotification.report"
+              class="rounded-xl border border-slate-200 bg-white p-4"
+            >
+              <h3 class="text-xl font-extrabold leading-tight text-slate-950">
+                {{ selectedNotification.title }}
+              </h3>
+
+              <p class="mt-3 text-base leading-relaxed text-slate-600">
+                {{ selectedNotification.description }}
+              </p>
+            </section>
           </div>
 
           <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-6 py-4">

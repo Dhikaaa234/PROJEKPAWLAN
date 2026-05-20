@@ -65,6 +65,8 @@ class ApiFormatter
 
     public static function notification(Notification $notification): array
     {
+        $data = $notification->data ?? [];
+
         return [
             'id' => $notification->id,
             'title' => $notification->title,
@@ -75,7 +77,8 @@ class ApiFormatter
             'tag' => self::notificationTag($notification->type),
             'unread' => $notification->read_at === null,
             'createdAt' => optional($notification->created_at)->toISOString(),
-            'data' => $notification->data ?? [],
+            'data' => $data,
+            'report' => self::notificationReport($notification),
         ];
     }
 
@@ -108,6 +111,35 @@ class ApiFormatter
 
         return $report->user_id === $viewer->id
             && ($report->status?->name === 'Dikirim');
+    }
+
+    private static function notificationReport(Notification $notification): ?array
+    {
+        $data = $notification->data ?? [];
+        $report = null;
+
+        if (!empty($data['report_id'])) {
+            $report = Report::query()
+                ->with(['category', 'status'])
+                ->find($data['report_id']);
+        }
+
+        $reportData = [
+            'id' => $data['report_id'] ?? $report?->id,
+            'code' => $data['report_code'] ?? $report?->report_code,
+            'title' => $data['report_title'] ?? $report?->title,
+            'location' => $data['location'] ?? $report?->location,
+            'category' => $data['category'] ?? $report?->category?->name,
+            'oldStatus' => $data['old_status'] ?? null,
+            'newStatus' => $data['new_status'] ?? $report?->status?->name,
+            'adminResponse' => $data['admin_response'] ?? $report?->admin_response,
+        ];
+
+        $hasReportData = collect($reportData)
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->isNotEmpty();
+
+        return $hasReportData ? $reportData : null;
     }
 
     private static function notificationTag(?string $type): string
