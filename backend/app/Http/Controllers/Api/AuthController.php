@@ -17,6 +17,7 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
+        // Register frontend selalu membuat akun mahasiswa/user, bukan admin.
         $validated = $request->validate([
             'nama' => ['nullable', 'required_without:name', 'string', 'max:100'],
             'name' => ['nullable', 'required_without:nama', 'string', 'max:100'],
@@ -45,6 +46,7 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
+        // Login admin dan user memakai endpoint yang sama. Role dibaca dari database.
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -85,6 +87,7 @@ class AuthController extends Controller
      */
     public function forgotPassword(Request $request)
     {
+        // Laravel membuat token reset dan mengirim link ke email user.
         $request->validate([
             'email' => ['required', 'email'],
         ]);
@@ -109,6 +112,7 @@ class AuthController extends Controller
      */
     public function resetPassword(Request $request)
     {
+        // Token dari email divalidasi sebelum password baru disimpan.
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',

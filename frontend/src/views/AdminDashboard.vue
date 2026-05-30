@@ -1,4 +1,7 @@
 <script setup>
+// ===============================
+// IMPORT
+// ===============================
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -23,14 +26,62 @@ import DashboardTopbar from '../components/DashboardTopbar.vue'
 const router = useRouter()
 const { t } = useI18n()
 
+// ===============================
+// STATE HALAMAN ADMIN DASHBOARD
+// ===============================
 const stats = ref([])
 const incomingReports = ref([])
 const recentReports = ref([])
 const isLoadingDashboard = ref(false)
 const isExporting = ref(false)
 const isGeneratingReport = ref(false)
+
+// ===============================
+// COMPUTED DATA UNTUK TEMPLATE
+// ===============================
 const displayedIncomingReports = computed(() => incomingReports.value.slice(0, 5))
 const displayedRecentReports = computed(() => recentReports.value.slice(0, 5))
+
+// ===============================
+// LIFECYCLE
+// ===============================
+onMounted(fetchDashboard)
+
+// ===============================
+// FITUR: FETCH DATA DASHBOARD
+// ===============================
+
+// Mengambil data dashboard admin dari backend
+async function fetchDashboard() {
+  isLoadingDashboard.value = true
+
+  try {
+    const response = await api.get('/admin/dashboard')
+    const payload = unwrapResponse(response)
+    const incomingItems = payload.incomingReports ?? payload.newReports ?? []
+    const recentItems = payload.recentReports ?? payload.latestReports ?? []
+
+    stats.value = buildStats(payload)
+    incomingReports.value = Array.isArray(incomingItems)
+      ? incomingItems.map(normalizeIncomingReport)
+      : []
+    recentReports.value = Array.isArray(recentItems)
+      ? recentItems.map(normalizeRecentReport)
+      : []
+  } catch (error) {
+    // Menampilkan state kosong jika request dashboard gagal
+    stats.value = []
+    incomingReports.value = []
+    recentReports.value = []
+  } finally {
+    // Mengatur kondisi loading saat data dashboard selesai dimuat
+    isLoadingDashboard.value = false
+  }
+}
+
+// ===============================
+// FITUR: STATISTIK LAPORAN
+// ===============================
 
 const statIconMap = {
   total: FileText,
@@ -46,53 +97,21 @@ const statStyleMap = {
   selesai: 'bg-green-100 text-green-700',
 }
 
-const recentIconMap = {
-  chair: Armchair,
-  door: DoorOpen,
-  network: Wifi,
-  wifi: Wifi,
-  sent: Send,
-  Dikirim: Send,
-  Diproses: UserCog,
-  Selesai: CheckCircle2,
-  done: CheckCircle2,
-}
-
-function unwrapResponse(response) {
-  return response?.data?.data ?? response?.data ?? {}
-}
-
+// Mengambil key statistik agar cocok dengan konfigurasi ikon dan warna
 function getStatKey(stat) {
   return String(stat.key ?? stat.status ?? stat.title ?? '')
     .toLowerCase()
     .replace(/\s+/g, '-')
 }
 
-function getStatusClass(status) {
-  if (status === 'Dikirim') return 'bg-yellow-100 text-yellow-700'
-  if (status === 'Diproses') return 'bg-blue-100 text-blue-700'
-  if (status === 'Selesai') return 'bg-green-100 text-green-700'
-  if (status === 'Dibatalkan') return 'bg-red-100 text-red-700'
-  return 'bg-slate-100 text-slate-700'
-}
-
-function getStatusLabel(status) {
-  const labels = {
-    Dikirim: t('reports.status_sent'),
-    Diproses: t('reports.status_processed'),
-    Selesai: t('reports.status_completed'),
-    Dibatalkan: t('reports.status_cancelled'),
-  }
-
-  return labels[status] || status
-}
-
+// Menerjemahkan judul statistik yang tampil di card dashboard
 function getStatTitle(title) {
   if (String(title).toUpperCase() === 'TOTAL') return t('common.total')
 
   return getStatusLabel(title)
 }
 
+// Menyamakan format statistik dari backend agar siap dipakai template
 function normalizeStat(stat) {
   const key = getStatKey(stat)
 
@@ -105,6 +124,7 @@ function normalizeStat(stat) {
   }
 }
 
+// Menghitung dan menyusun ringkasan statistik dashboard admin
 function buildStats(payload) {
   if (Array.isArray(payload.stats)) {
     return payload.stats.map(normalizeStat)
@@ -142,6 +162,23 @@ function buildStats(payload) {
     .map(normalizeStat)
 }
 
+// ===============================
+// FITUR: LAPORAN TERBARU
+// ===============================
+
+const recentIconMap = {
+  chair: Armchair,
+  door: DoorOpen,
+  network: Wifi,
+  wifi: Wifi,
+  sent: Send,
+  Dikirim: Send,
+  Diproses: UserCog,
+  Selesai: CheckCircle2,
+  done: CheckCircle2,
+}
+
+// Menampilkan laporan baru masuk di dashboard
 function normalizeIncomingReport(report) {
   const reporterName = report.author ?? report.reporter ?? report.user?.name ?? ''
 
@@ -160,6 +197,7 @@ function normalizeIncomingReport(report) {
   }
 }
 
+// Menampilkan laporan terbaru di dashboard
 function normalizeRecentReport(report) {
   const type = report.iconType ?? report.type ?? ''
 
@@ -175,41 +213,11 @@ function normalizeRecentReport(report) {
   }
 }
 
-function getInitials(name = '') {
-  return String(name)
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-}
+// ===============================
+// FITUR: NAVIGASI ADMIN
+// ===============================
 
-async function fetchDashboard() {
-  isLoadingDashboard.value = true
-
-  try {
-    const response = await api.get('/admin/dashboard')
-    const payload = unwrapResponse(response)
-    const incomingItems = payload.incomingReports ?? payload.newReports ?? []
-    const recentItems = payload.recentReports ?? payload.latestReports ?? []
-
-    stats.value = buildStats(payload)
-    incomingReports.value = Array.isArray(incomingItems)
-      ? incomingItems.map(normalizeIncomingReport)
-      : []
-    recentReports.value = Array.isArray(recentItems)
-      ? recentItems.map(normalizeRecentReport)
-      : []
-  } catch (error) {
-    stats.value = []
-    incomingReports.value = []
-    recentReports.value = []
-  } finally {
-    isLoadingDashboard.value = false
-  }
-}
-
+// Mengekspor data laporan dari dashboard admin
 async function exportData() {
   isExporting.value = true
 
@@ -228,6 +236,7 @@ async function exportData() {
   }
 }
 
+// Menjalankan aksi generate report lalu refresh data dashboard
 async function generateReport() {
   isGeneratingReport.value = true
 
@@ -239,15 +248,56 @@ async function generateReport() {
   }
 }
 
+// Navigasi menuju halaman management laporan
 function goToReportManagement() {
   router.push('/admin/management-laporan')
 }
 
+// Membuka detail laporan melalui halaman management laporan
 function openReport() {
   goToReportManagement()
 }
 
-onMounted(fetchDashboard)
+// ===============================
+// HELPER FUNCTION
+// ===============================
+
+// Mengambil payload data dari response API Laravel
+function unwrapResponse(response) {
+  return response?.data?.data ?? response?.data ?? {}
+}
+
+// Menentukan warna badge status laporan
+function getStatusClass(status) {
+  if (status === 'Dikirim') return 'bg-yellow-100 text-yellow-700'
+  if (status === 'Diproses') return 'bg-blue-100 text-blue-700'
+  if (status === 'Selesai') return 'bg-green-100 text-green-700'
+  if (status === 'Dibatalkan') return 'bg-red-100 text-red-700'
+  return 'bg-slate-100 text-slate-700'
+}
+
+// Menerjemahkan status laporan sesuai bahasa aktif
+function getStatusLabel(status) {
+  const labels = {
+    Dikirim: t('reports.status_sent'),
+    Diproses: t('reports.status_processed'),
+    Selesai: t('reports.status_completed'),
+    Dibatalkan: t('reports.status_cancelled'),
+  }
+
+  return labels[status] || status
+}
+
+// Membuat inisial nama pelapor untuk avatar kecil
+function getInitials(name = '') {
+  return String(name)
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
 </script>
 
 <template>

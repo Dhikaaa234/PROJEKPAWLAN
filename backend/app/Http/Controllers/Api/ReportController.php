@@ -16,6 +16,7 @@ class ReportController extends Controller
 {
     public function index(Request $request)
     {
+        // Semua laporan publik yang bisa dilihat user login.
         $query = Report::query()->with(['user', 'category', 'status']);
         $this->applyFilters($query, $request);
 
@@ -24,6 +25,7 @@ class ReportController extends Controller
 
     public function myReports(Request $request)
     {
+        // Laporan saya hanya mengambil report milik user dari token aktif.
         $query = Report::query()
             ->with(['user', 'category', 'status'])
             ->where('user_id', $request->user()->id);
@@ -56,6 +58,7 @@ class ReportController extends Controller
 
     public function similar(Request $request)
     {
+        // Laporan mirip terdekat ditampilkan maksimal 5 item di halaman CreateReport.
         $limit = min(max((int) $request->query('limit', 5), 1), 5);
 
         $reports = Report::query()
@@ -73,6 +76,7 @@ class ReportController extends Controller
 
     public function store(Request $request)
     {
+        // Create report menerima data form dan optional file gambar via multipart/form-data.
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'category_id' => ['nullable', 'exists:categories,id'],
@@ -134,6 +138,7 @@ class ReportController extends Controller
 
     public function cancel(Request $request, Report $report)
     {
+        // User hanya boleh membatalkan laporan miliknya sendiri.
         if ($report->user_id !== $request->user()->id) {
             return response()->json(['message' => 'Anda tidak berhak membatalkan laporan ini'], 403);
         }
@@ -193,6 +198,7 @@ class ReportController extends Controller
 
     public function updateStatus(Request $request, Report $report)
     {
+        // Admin mengubah status laporan dan optional catatan/tanggapan admin.
         $validated = $request->validate([
             'status_id' => ['nullable', 'exists:statuses,id'],
             'status' => ['nullable', 'string', 'exists:statuses,name'],
@@ -255,6 +261,7 @@ class ReportController extends Controller
 
     private function applyFilters($query, Request $request): void
     {
+        // Filter dipakai oleh halaman semua laporan, laporan saya, dan admin management.
         $search = trim((string) $request->query('search', ''));
         $status = $request->query('status');
         $category = $request->query('category');
@@ -335,6 +342,7 @@ class ReportController extends Controller
 
     private function storeUploadedImage(Request $request): ?string
     {
+        // File asli disimpan di storage public, database hanya menyimpan path-nya.
         if ($request->hasFile('image')) {
             return $request->file('image')->store('reports', 'public');
         }

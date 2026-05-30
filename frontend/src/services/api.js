@@ -21,6 +21,8 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
+    // FormData dipakai saat upload foto laporan. Content-Type dibiarkan Axios/browser
+    // agar boundary multipart otomatis terbentuk.
     if (config.data instanceof FormData) {
       if (typeof config.headers.delete === 'function') {
         config.headers.delete('Content-Type')
@@ -64,6 +66,7 @@ export const authAPI = {
   sendResetLink: (email) => api.post('/forgot-password', { email })
 }
 
+// Endpoint laporan dipisah agar view tidak perlu tahu detail konfigurasi Axios.
 export const reportAPI = {
   createReport: (payload) => api.post('/reports', payload),
 }

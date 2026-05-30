@@ -117,6 +117,7 @@ async function fetchReportOptions() {
   isLoadingOptions.value = true;
 
   try {
+    // Options mengambil kategori/summary, similar mengambil maksimal 5 laporan terbaru.
     const [optionsResult, similarResult] = await Promise.allSettled([
       api.get("/reports/options"),
       api.get("/reports/similar", {
@@ -194,6 +195,7 @@ function handleImageChange(event) {
 
   if (!file) return;
 
+  // Validasi frontend agar file yang dikirim sesuai aturan backend.
   if (!allowedImageTypes.includes(file.type)) {
     imageError.value = t("create_report.image_format_error");
     event.target.value = "";
@@ -229,6 +231,7 @@ async function submitReport() {
   isSubmitting.value = true;
 
   try {
+    // FormData wajib dipakai agar file gambar terkirim sebagai multipart/form-data.
     const payload = new FormData();
     payload.append("title", form.value.title);
     payload.append("category", form.value.category);

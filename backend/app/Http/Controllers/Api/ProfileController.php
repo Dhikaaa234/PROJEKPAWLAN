@@ -12,6 +12,7 @@ class ProfileController extends Controller
 {
     public function show(Request $request)
     {
+        // Profile selalu memakai user dari token Sanctum yang sedang aktif.
         return response()->json([
             'user' => ApiFormatter::user($request->user()),
         ]);
@@ -21,6 +22,7 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // Email tidak diubah dari halaman profile. Yang boleh diubah: nama, NIM, telepon.
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:255'],
             'nama' => ['nullable', 'string', 'max:255'],
@@ -63,6 +65,7 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // Password lama harus cocok sebelum password baru disimpan.
         $request->validate([
             'old_password' => ['required', 'string'],
             'new_password' => ['required', 'string', 'min:6', 'confirmed'],

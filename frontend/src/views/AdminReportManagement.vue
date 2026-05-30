@@ -246,6 +246,7 @@ function syncCategoryOptions(payload, normalizedReports) {
 
 async function fetchStats() {
   try {
+    // Mengambil ringkasan jumlah laporan untuk card statistik admin.
     const response = await api.get('/admin/reports/stats')
     const payload = unwrapResponse(response)
 
@@ -261,6 +262,7 @@ async function fetchReports() {
   isLoadingReports.value = true
 
   try {
+    // Mengambil daftar laporan admin dari backend dan menormalisasi field untuk tabel.
     const response = await api.get('/admin/reports')
     const payload = unwrapResponse(response)
     const normalizedReports = extractReports(payload).map(normalizeReport)
@@ -279,6 +281,7 @@ async function fetchReports() {
 }
 
 function openStatusModal(report) {
+  // Modal status memakai salinan data agar perubahan sementara tidak langsung mengubah tabel.
   selectedReport.value = { ...report }
   selectedUpdateStatus.value = report.status
   adminNote.value = report.adminResponse || ''
@@ -310,6 +313,7 @@ async function saveStatusUpdate() {
   isSavingStatus.value = true
 
   try {
+    // Admin mengirim status baru dan catatan; backend membuat log serta notifikasi user.
     const response = await api.patch(`/admin/reports/${selectedReport.value.id}/status`, {
       status: selectedUpdateStatus.value,
       note: adminNote.value,

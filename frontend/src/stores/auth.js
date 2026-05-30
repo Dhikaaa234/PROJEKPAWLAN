@@ -39,6 +39,8 @@ function getRoleFromEmail(email) {
 function normalizeUser(user, email = '') {
   if (!user) return null
 
+  // Backend bisa mengirim nama sebagai "name" atau "nama".
+  // Store menormalkan keduanya agar komponen frontend bisa memakai salah satu.
   const normalizedUser = {
     ...user,
   }
@@ -108,6 +110,7 @@ export const useAuthStore = defineStore('auth', {
     setAuth({ token, user, remember = false }) {
       const normalizedUser = normalizeUser(user)
 
+      // Titik utama penyimpanan session setelah login/register/fetch user.
       this.token = token
       this.user = normalizedUser
       this.isAuthenticated = !!token && !!normalizedUser
@@ -361,6 +364,7 @@ export const useAuthStore = defineStore('auth', {
       const token = getStoredToken()
       const user = normalizeUser(getStoredUser())
 
+      // Dipakai router guard agar pindah halaman cepat tanpa request /api/me.
       this.token = token
       this.user = user
       this.isAuthenticated = !!token && !!user

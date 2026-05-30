@@ -45,6 +45,14 @@ const routes = [
     },
   },
   {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('../views/ResetPassword.vue'),
+    meta: {
+      guestOnly: true,
+    },
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: Dashboard,
@@ -142,14 +150,17 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
 
+  // Restore session cukup dari localStorage supaya navigasi tidak menunggu /api/me.
   if (!auth.isAuthenticated) {
     auth.restoreSession()
   }
 
+  // Halaman protected hanya boleh dibuka jika user sudah login.
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return '/login'
   }
 
+  // Halaman guest seperti login/register tidak dibuka lagi jika user sudah login.
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return auth.isAdmin ? '/admin/dashboard' : '/dashboard'
   }
@@ -158,6 +169,7 @@ router.beforeEach((to) => {
     return true
   }
 
+  // Role guard: admin tidak masuk halaman user, user tidak masuk halaman admin.
   if (to.meta.role && auth.role !== to.meta.role) {
     return auth.isAdmin ? '/admin/dashboard' : '/dashboard'
   }
