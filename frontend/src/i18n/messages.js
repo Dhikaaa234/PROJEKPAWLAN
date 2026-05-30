@@ -83,8 +83,8 @@ export const messages = {
       repaired: 'Berhasil Diperbaiki',
       export_data: 'Export Data',
       exporting: 'Exporting...',
-      generate_report: 'Generate Report',
-      generating: 'Generating...',
+      generate_report: 'Refresh Rekap',
+      generating: 'Merefresh...',
     },
     reports: {
       all_title: 'Semua Laporan',
@@ -300,8 +300,8 @@ export const messages = {
       repaired: 'Resolved',
       export_data: 'Export Data',
       exporting: 'Exporting...',
-      generate_report: 'Generate Report',
-      generating: 'Generating...',
+      generate_report: 'Refresh Summary',
+      generating: 'Refreshing...',
     },
     reports: {
       all_title: 'All Reports',
