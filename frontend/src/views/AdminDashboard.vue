@@ -337,7 +337,6 @@ function getInitials(name = '') {
                   @click="generateReport"
                   class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <Plus :size="18" />
                   {{ isGeneratingReport ? $t('dashboard.generating') : $t('dashboard.generate_report') }}
                 </button>
               </div>
