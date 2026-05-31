@@ -5,7 +5,7 @@ defineProps({
     required: true,
   },
   value: {
-    type: String,
+    type: [String, Number],
     required: true,
   },
   note: {
@@ -13,7 +13,7 @@ defineProps({
     required: true,
   },
   icon: {
-    type: Object,
+    type: [Object, Function],
     required: true,
   },
   iconClass: {

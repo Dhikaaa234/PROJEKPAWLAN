@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../services/api'
 import AdminSidebar from '../components/AdminSidebar.vue'
@@ -7,10 +7,13 @@ import DashboardSidebar from '../components/DashboardSidebar.vue'
 import DashboardTopbar from '../components/DashboardTopbar.vue'
 import { User } from 'lucide-vue-next'
 import { useLocale } from '../composables/useLocale'
+import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
 const { t } = useLocale()
 const SidebarComponent = computed(() => (auth.isAdmin ? AdminSidebar : DashboardSidebar))
+
+const router = useRouter()
 
 const isEditing = ref(false)
 const isLoading = ref(false)
@@ -33,9 +36,29 @@ function updateFormFromUser() {
   originalForm.value = { ...form.value }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Jika belum ter-auth tapi token ada, coba ambil user dari backend.
+  try {
+    if (!auth.isAuthenticated && auth.token) {
+      await auth.fetchCurrentUser()
+    }
+  } catch (err) {
+    // Jika fetch gagal (mis. token invalid), arahkan ke login.
+    auth.clearAuth()
+    router.push('/login')
+    return
+  }
+
   updateFormFromUser()
 })
+
+// Jika auth.user berubah (mis. setelah fetchCurrentUser), update form
+watch(
+  () => auth.user,
+  () => {
+    updateFormFromUser()
+  }
+)
 
 function startEdit() {
   originalForm.value = { ...form.value }

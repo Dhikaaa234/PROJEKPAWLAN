@@ -43,13 +43,18 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Hanya redirect jika bukan endpoint public (login/register/forgot-password)
       const url = error.config?.url
-      const isPublicEndpoint = url && ['/login', '/register', '/forgot-password'].some(ep => url.includes(ep))
+      const isPublicEndpoint = url && ['/login', '/register', '/forgot-password', '/reset-password'].some(ep => url.includes(ep))
       
       if (!isPublicEndpoint) {
         // Token expired atau invalid - untuk protected routes
+        // Hapus semua kunci storage terkait auth agar tidak meninggalkan state yang tidak konsisten
         localStorage.removeItem('auth_token')
         localStorage.removeItem('user')
-        // Gunakan router.push() untuk smooth navigation, bukan window.location.href
+        localStorage.removeItem('filkomcare_user')
+        localStorage.removeItem('remember_me')
+
+        // Navigasi ke login — router.push tidak melakukan reload, tetapi route guard akan
+        // memulihkan session dari storage yang sudah dibersihkan.
         router.push('/login').catch(() => {})
       }
     }

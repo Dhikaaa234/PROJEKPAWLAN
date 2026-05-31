@@ -101,6 +101,7 @@ onMounted(() => {
         type="button"
         aria-label="Pengaturan"
         class="grid size-9 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-blue-700"
+        @click="router.push('/settings')"
       >
         <Settings :size="20" />
       </button>
@@ -108,11 +109,14 @@ onMounted(() => {
       <div class="hidden h-8 w-px bg-slate-200 md:block"></div>
 
       <div class="flex items-center gap-3">
-        <div
+        <button
+          type="button"
+          @click="router.push('/profile')"
           class="grid size-10 place-items-center rounded-full bg-orange-100 text-sm font-extrabold text-orange-700 ring-2 ring-orange-50"
+          aria-label="Profil"
         >
           {{ userInitials }}
-        </div>
+        </button>
 
         <div class="hidden leading-tight sm:block">
           <p class="text-sm font-bold text-slate-950">
